@@ -12,11 +12,15 @@
 """
 from __future__ import annotations
 
+import base64
+import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.parse
 import urllib.request
@@ -216,33 +220,86 @@ def parse_pdf_index(html: str, base_url: str, name: str) -> list[dict]:
     return items
 
 
-def pdf_to_text(url: str) -> str:
-    """PDFを取得して本文を文字起こしする(poppler の pdftotext を使う)。失敗したら空文字。"""
-    try:
-        _, data = http_open(url, max_bytes=30_000_000)
-        r = subprocess.run(["pdftotext", "-enc", "UTF-8", "-", "-"], input=data, capture_output=True, timeout=90)
-        text = r.stdout.decode("utf-8", "replace")
-    except Exception as e:
-        print(f"[WARN] pdf {url}: {type(e).__name__}: {e}", file=sys.stderr)
-        return ""
+OCR_MAX_PAGES = 12
+
+
+def _clean_pdf_text(text: str) -> str:
     text = text.replace("\x0c", "\n\n")
     text = re.sub(r"[ \t\u3000]+\n", "\n", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
 
 
+def ocr_pdf(data: bytes) -> str:
+    """画像だけのPDFを、1ページずつ画像にして tesseract(日本語)で文字起こしする。"""
+    if not (shutil.which("tesseract") and shutil.which("pdftoppm")):
+        print("[WARN] OCR には tesseract と pdftoppm が必要です", file=sys.stderr)
+        return ""
+    lang = os.environ.get("OCR_LANG", "jpn+eng")
+    with tempfile.TemporaryDirectory() as d:
+        src = Path(d) / "in.pdf"
+        src.write_bytes(data)
+        subprocess.run(["pdftoppm", "-r", "200", "-gray", "-png", "-l", str(OCR_MAX_PAGES), str(src), str(Path(d) / "p")],
+                       check=True, timeout=180, capture_output=True)
+        pages = sorted(Path(d).glob("p-*.png"))
+
+        def one(png: Path) -> str:
+            r = subprocess.run(["tesseract", str(png), "-", "-l", lang, "--psm", "3"],
+                               capture_output=True, timeout=180)
+            return r.stdout.decode("utf-8", "replace")
+
+        with ThreadPoolExecutor(max_workers=3) as ex:
+            return "\n\n".join(ex.map(one, pages))
+
+
+def pdf_to_text(url: str) -> str:
+    """PDFを取得して本文を文字起こしする。文字が入っていない(画像だけの)PDFはOCRに回す。失敗したら空文字。"""
+    try:
+        _, data = http_open(url, max_bytes=30_000_000)
+        r = subprocess.run(["pdftotext", "-enc", "UTF-8", "-", "-"], input=data, capture_output=True, timeout=90)
+        raw = r.stdout.decode("utf-8", "replace")
+        pages = max(1, raw.count("\x0c"))
+        if len(re.sub(r"\s", "", raw)) < 40 * pages:  # 1ページあたり40文字未満 → 画像PDFとみなす
+            ocr = ocr_pdf(data)
+            if len(re.sub(r"\s", "", ocr)) > len(re.sub(r"\s", "", raw)):
+                raw = ocr
+        return _clean_pdf_text(raw)
+    except Exception as e:
+        print(f"[WARN] pdf {url}: {type(e).__name__}: {e}", file=sys.stderr)
+        return ""
+
+
+def previous_body(name: str) -> str:
+    """前回公開した本文を使い回す(OCRは重いので、一度読んだ号はやり直さない)。"""
+    url = os.environ.get("PREVIOUS_NEWS_URL", "")
+    repo = os.environ.get("GITHUB_REPOSITORY", "")
+    if url:
+        base = url.rsplit("/", 1)[0] + "/"
+    elif "/" in repo:
+        owner, rname = repo.split("/", 1)
+        base = f"https://{owner.lower()}.github.io/{rname}/"
+    else:
+        return ""
+    pw = os.environ.get("NEWS_PASSPHRASE")
+    try:
+        raw = http_open(f"{base}issues/{name}.{'enc' if pw else 'txt'}?t={int(time.time())}")[1]
+        return (decrypt_blob(raw, pw) if pw else raw).decode("utf-8")
+    except Exception:
+        return ""
+
+
 def attach_pdf_bodies(ordered: list[dict], topics: list[dict], out_dir: Path) -> None:
     """pdf_index のテーマの記事に、PDFの文字起こしを付ける。
     本文は news.json を重くしないよう issues/ 以下の別ファイルに置き、記事には body_url だけ持たせる。"""
     pdf_topics = {t["id"] for t in topics if t.get("type") == "pdf_index"}
-    deadline = time.monotonic() + 240
+    deadline = time.monotonic() + 600
     for a in ordered:
         if not (pdf_topics & set(a["topics"])) or time.monotonic() > deadline:
             continue
-        text = pdf_to_text(a["link"])
-        if len(text) < 50:
-            continue
         name = re.sub(r"[^0-9A-Za-z_-]", "", Path(urllib.parse.urlparse(a["link"]).path).stem) or "issue"
+        text = previous_body(name) or pdf_to_text(a["link"])
+        if len(text) < 20:
+            continue
         (out_dir / "issues").mkdir(parents=True, exist_ok=True)
         (out_dir / "issues" / f"{name}.txt").write_text(text, encoding="utf-8")
         a["body_url"] = f"issues/{name}.txt"
@@ -344,17 +401,61 @@ def extract_description(body: bytes) -> str:
     return ""
 
 
+# ── 合言葉による暗号化(PBKDF2-SHA256 → AES-256-GCM。ブラウザの Web Crypto で復号する) ──
+
+KDF_ITER = 200_000
+_b64 = lambda b: base64.b64encode(b).decode("ascii")
+
+
+def derive_key(passphrase: str, salt: bytes) -> bytes:
+    return hashlib.pbkdf2_hmac("sha256", passphrase.encode("utf-8"), salt, KDF_ITER, 32)
+
+
+def encrypt_blob(plain: bytes, key: bytes, salt: bytes) -> str:
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+    iv = os.urandom(12)
+    ct = AESGCM(key).encrypt(iv, plain, None)
+    return json.dumps({"v": 1, "iter": KDF_ITER, "salt": _b64(salt), "iv": _b64(iv), "ct": _b64(ct)})
+
+
+def decrypt_blob(text: bytes, passphrase: str) -> bytes:
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+    env = json.loads(text)
+    key = derive_key(passphrase, base64.b64decode(env["salt"]))
+    return AESGCM(key).decrypt(base64.b64decode(env["iv"]), base64.b64decode(env["ct"]), None)
+
+
+def encrypt_outputs(payload: dict, out_path: Path, passphrase: str) -> None:
+    """news.json と issues/*.txt を暗号化して news.enc / issues/*.enc に置き換える(平文は残さない)。"""
+    out_dir = out_path.parent
+    salt = os.urandom(16)
+    key = derive_key(passphrase, salt)
+    for a in payload["articles"]:
+        bu = a.get("body_url")
+        if bu and bu.endswith(".txt") and (out_dir / bu).exists():
+            f = out_dir / bu
+            enc = bu[:-4] + ".enc"
+            (out_dir / enc).write_text(encrypt_blob(f.read_bytes(), key, salt), encoding="utf-8")
+            f.unlink()
+            a["body_url"] = enc
+    (out_dir / "news.enc").write_text(
+        encrypt_blob(json.dumps(payload, ensure_ascii=False).encode("utf-8"), key, salt), encoding="utf-8")
+    out_path.unlink(missing_ok=True)  # 平文の news.json は公開しない
+
+
 def load_previous() -> dict[str, dict]:
     """前回公開した news.json を読み、概要を使い回す(GitHub Actions 上でだけ動く)。"""
     url = os.environ.get("PREVIOUS_NEWS_URL", "")
     repo = os.environ.get("GITHUB_REPOSITORY", "")
     if not url and "/" in repo:
         owner, name = repo.split("/", 1)
-        url = f"https://{owner.lower()}.github.io/{name}/news.json"
+        url = f"https://{owner.lower()}.github.io/{name}/" + ("news.enc" if os.environ.get("NEWS_PASSPHRASE") else "news.json")
     if not url:
         return {}
     try:
-        data = json.loads(http_open(f"{url}?t={int(time.time())}")[1])
+        raw = http_open(f"{url}?t={int(time.time())}")[1]
+        pw = os.environ.get("NEWS_PASSPHRASE")
+        data = json.loads(decrypt_blob(raw, pw) if pw and url.endswith(".enc") else raw)
         return {a["link"]: a for a in data.get("articles", []) if a.get("link")}
     except Exception as e:
         print(f"[INFO] 前回の news.json は読めませんでした: {type(e).__name__}", file=sys.stderr)
@@ -490,6 +591,15 @@ def main() -> int:
     }
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8")
+    passphrase = os.environ.get("NEWS_PASSPHRASE", "")
+    if passphrase:
+        try:
+            encrypt_outputs(payload, out_path, passphrase)
+        except ImportError:
+            out_path.unlink(missing_ok=True)
+            print("[ERROR] 暗号化に必要な cryptography がありません(公開を中止します)", file=sys.stderr)
+            return 1
+        print("encrypted: news.enc")
     with_summary = sum(1 for a in ordered if a.get("summary"))
     print(f"wrote {out_path}: {len(ordered)} articles ({with_summary} with summary), {len(errors)} topic errors")
     return 0
