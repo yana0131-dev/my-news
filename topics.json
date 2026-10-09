@@ -8,7 +8,8 @@
   },
   "topics": [
     { "id": "top",        "name": "主要ニュース", "type": "google_topic", "topic": "NATION",        "default": true },
-    { "id": "world",      "name": "国際",         "type": "google_topic", "topic": "WORLD",         "default": true },
+    { "id": "nhk",        "name": "NHK",          "type": "feed", "url": "https://www3.nhk.or.jp/rss/news/cat0.xml", "default": true },
+    { "id": "world",      "name": "国際",        "type": "google_topic", "topic": "WORLD",         "default": true },
     { "id": "business",   "name": "経済・ビジネス", "type": "google_topic", "topic": "BUSINESS",      "default": true },
     { "id": "technology", "name": "テクノロジー", "type": "google_topic", "topic": "TECHNOLOGY",    "default": true },
     { "id": "science",    "name": "科学",         "type": "google_topic", "topic": "SCIENCE",       "default": false },
