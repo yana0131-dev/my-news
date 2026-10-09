@@ -239,6 +239,7 @@ body.sheet-open #sheet, body.detail-open #detail { transform: none; visibility: 
 #d-title { font-size: 21px; line-height: 1.55; font-weight: 900; line-break: strict; word-break: auto-phrase; text-wrap: pretty; margin: 0; }
 .d-meta { margin: 8px 0 0; font-size: 13px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 0 12px; }
 .d-sum { margin: 18px 0 0; padding: 14px 16px; border-radius: 14px; background: var(--tcs); font-size: 16px; line-height: 1.9; line-break: strict; }
+.d-full { margin: 14px 0 0; padding: 4px 2px 0; font-size: 15px; line-height: 1.95; white-space: pre-wrap; overflow-wrap: anywhere; line-break: strict; color: var(--ink); border-top: 1px solid var(--line); padding-top: 14px; }
 .d-sum.none { background: var(--bg); color: var(--muted); font-size: 14px; line-height: 1.8; }
 .d-note { margin: 8px 2px 0; font-size: 12px; color: var(--faint); }
 .d-rel { margin-top: 20px; }
@@ -611,6 +612,16 @@ body.sheet-open #sheet, body.detail-open #detail { transform: none; visibility: 
     } else {
       box.className = "d-sum none"; box.textContent = "この記事の概要は取得できていません。「元の記事を開く」から本文を読めます。";
       sum.append(box);
+    }
+
+    if (a.body_url) {  // PDFの文字起こしを読み込んで表示
+      const full = document.createElement("div"); full.className = "d-full";
+      full.textContent = "本文を読み込み中…";
+      sum.appendChild(full);
+      const at = i;
+      fetch(a.body_url).then(r => r.ok ? r.text() : Promise.reject()).then(t => {
+        if (detailAt === at) full.textContent = t;
+      }).catch(() => { if (detailAt === at) full.textContent = "本文を読み込めませんでした。「元の記事を開く」でPDFを開いてください。"; });
     }
 
     const rel = $("d-rel");
