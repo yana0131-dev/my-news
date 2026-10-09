@@ -163,6 +163,14 @@ main { padding-bottom: 72px; }
 .row .body { grid-column: 3; border-bottom: 1px solid var(--line); }
 .row:last-child .body { border-bottom: 0; }
 .hl { font-size: 17px; line-height: 26px; font-weight: 700; overflow-wrap: anywhere; line-break: strict; word-break: auto-phrase; text-wrap: pretty; }
+.go {
+  display: inline-flex; align-items: center; gap: 5px; padding: 4px 11px; min-height: 32px;
+  border: 1.5px solid var(--tc); border-radius: 999px; background: transparent; color: var(--tc);
+  font: inherit; font-size: 13px; font-weight: 900; cursor: pointer;
+}
+.go svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.acts { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; }
+.acts .done, .acts .go { margin-left: 0; }
 .row:active .hl { color: var(--tc); }
 @media (hover: hover) { .row:hover .hl { color: var(--tc); } }
 .pv {
@@ -171,7 +179,7 @@ main { padding-bottom: 72px; }
   line-break: strict; word-break: auto-phrase;
 }
 .done {
-  margin-left: auto; display: inline-flex; align-items: center; gap: 5px; padding: 3px 13px 3px 9px; border-radius: 999px;
+  margin-left: auto; display: inline-flex; align-items: center; gap: 5px; padding: 3px 11px 3px 8px; border-radius: 999px;
   background: var(--tc); color: var(--on-tc); font-size: 14px; font-weight: 900; line-height: 1.5;
 }
 .done svg { width: 18px; height: 18px; fill: none; stroke: var(--on-tc); stroke-width: 3.2; stroke-linecap: round; stroke-linejoin: round; }
@@ -469,7 +477,17 @@ body.sheet-open #sheet, body.detail-open #detail { transform: none; visibility: 
         const meta = document.createElement("div"); meta.className = "meta";
         if (tag) { const s = document.createElement("span"); s.className = "pill"; s.textContent = topicName(tag); meta.appendChild(s); }
         if (a.source) { const s = document.createElement("span"); s.textContent = a.source; meta.appendChild(s); }
-        if (read.has(a.link)) meta.appendChild(doneBadge());
+        const acts = document.createElement("span"); acts.className = "acts";
+        if (read.has(a.link)) acts.appendChild(doneBadge());
+        const go = document.createElement("button"); go.type = "button"; go.className = "go";
+        go.setAttribute("aria-label", "元の記事を開く");
+        go.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>元記事';
+        go.addEventListener("click", (e) => {
+          e.preventDefault(); e.stopPropagation();
+          window.open(safeUrl(a.link), "_blank", "noopener,noreferrer");
+          markRead(a);
+        });
+        acts.appendChild(go); meta.appendChild(acts);
         body.appendChild(meta);
         el.append(tm, rail, body);
         el.addEventListener("click", (e) => {
@@ -559,8 +577,8 @@ body.sheet-open #sheet, body.detail-open #detail { transform: none; visibility: 
     row.classList.add("read");
     const rail = row.querySelector(".rail");
     if (rail) rail.replaceChildren(railNode(true));
-    const meta = row.querySelector(".meta");
-    if (meta && !meta.querySelector(".done")) meta.appendChild(doneBadge());
+    const acts = row.querySelector(".acts");
+    if (acts && !acts.querySelector(".done")) acts.insertBefore(doneBadge(), acts.firstChild);
   }
 
   /* ── 記事の概要 ───────────────────────── */
