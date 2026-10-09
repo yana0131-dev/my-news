@@ -252,7 +252,11 @@ body.sheet-open #sheet, body.detail-open #detail { transform: none; visibility: 
 #d-title { font-size: 21px; line-height: 1.55; font-weight: 900; line-break: strict; word-break: auto-phrase; text-wrap: pretty; margin: 0; }
 .d-meta { margin: 8px 0 0; font-size: 13px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 0 12px; }
 .d-sum { margin: 18px 0 0; padding: 14px 16px; border-radius: 14px; background: var(--tcs); font-size: 16px; line-height: 1.9; line-break: strict; }
-.d-full { margin: 14px 0 0; padding: 4px 2px 0; font-size: 15px; line-height: 1.95; white-space: pre-wrap; overflow-wrap: anywhere; line-break: strict; color: var(--ink); border-top: 1px solid var(--line); padding-top: 14px; }
+.d-full { margin: 14px 0 0; padding: 4px 2px 0; font-size: 15px; line-height: 1.95; overflow-wrap: anywhere; line-break: strict; color: var(--ink); border-top: 1px solid var(--line); padding-top: 14px; }
+.d-full .item { display: flex; align-items: flex-start; gap: 10px; padding: 11px 0; border-bottom: 1px solid var(--line); }
+.d-full .item-t { flex: 1; min-width: 0; }
+.srch { flex: none; display: inline-flex; align-items: center; gap: 4px; padding: 4px 11px; min-height: 32px; border: 1.5px solid var(--tc); border-radius: 999px; color: var(--tc); font-size: 13px; font-weight: 900; text-decoration: none; }
+.srch svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; }
 .d-sum.none { background: var(--bg); color: var(--muted); font-size: 14px; line-height: 1.8; }
 .d-note { margin: 8px 2px 0; font-size: 12px; color: var(--faint); }
 .d-rel { margin-top: 20px; }
@@ -612,6 +616,28 @@ body.sheet-open #sheet, body.detail-open #detail { transform: none; visibility: 
     return openEnv(env, key);
   }
 
+  /* 本文の各項目(◎)に、記事検索のボタンを付ける */
+  function renderBody(box, text) {
+    box.replaceChildren();
+    text.split("\n").forEach((line) => {
+      const t = line.trim();
+      if (!t) return;
+      const row = document.createElement("div");
+      if (t.startsWith("◎")) {
+        row.className = "item";
+        const title = t.replace(/^◎\s*/, "");
+        const sp = document.createElement("span"); sp.className = "item-t"; sp.textContent = t;
+        const a = document.createElement("a"); a.className = "srch";
+        a.href = "https://www.google.com/search?tbm=nws&q=" + encodeURIComponent(title.slice(0, 60));
+        a.target = "_blank"; a.rel = "noopener noreferrer";
+        a.setAttribute("aria-label", "この項目を記事検索する");
+        a.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>検索';
+        row.append(sp, a);
+      } else row.textContent = t;
+      box.appendChild(row);
+    });
+  }
+
   async function load(initial) {
     const btn = $("btn-reload");
     btn.classList.add("spin");
@@ -703,7 +729,7 @@ body.sheet-open #sheet, body.detail-open #detail { transform: none; visibility: 
       sum.appendChild(full);
       const at = i;
       readBody(a.body_url).then(t => {
-        if (detailAt === at) full.textContent = t;
+        if (detailAt === at) renderBody(full, t);
       }).catch(() => { if (detailAt === at) full.textContent = "本文を読み込めませんでした。「元の記事を開く」でPDFを開いてください。"; });
     }
 
