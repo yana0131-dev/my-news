@@ -221,6 +221,7 @@ def parse_pdf_index(html: str, base_url: str, name: str) -> list[dict]:
 
 
 OCR_MAX_PAGES = 12
+BODY_VERSION = "v2"  # 文字起こしの方式を変えたら上げる。上げると、読み取り済みの号もすべて読み直す
 
 
 def _clean_pdf_text(text: str) -> str:
@@ -304,8 +305,8 @@ def attach_pdf_bodies(ordered: list[dict], topics: list[dict], out_dir: Path) ->
     for a in ordered:
         if not (pdf_topics & set(a["topics"])) or time.monotonic() > deadline:
             continue
-        name = re.sub(r"[^0-9A-Za-z_-]", "", Path(urllib.parse.urlparse(a["link"]).path).stem) or "issue"
-        text = previous_body(name) or pdf_to_text(a["link"])
+        name = (re.sub(r"[^0-9A-Za-z_-]", "", Path(urllib.parse.urlparse(a["link"]).path).stem) or "issue") + "-" + BODY_VERSION
+        text = ("" if os.environ.get("NEWS_REREAD") == "1" else previous_body(name)) or pdf_to_text(a["link"])
         if len(text) < 20:
             continue
         (out_dir / "issues").mkdir(parents=True, exist_ok=True)
