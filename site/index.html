@@ -91,6 +91,19 @@ body {
   padding-bottom: env(safe-area-inset-bottom);
 }
 body.sheet-open, body.detail-open { overflow: hidden; }
+#lock { position: fixed; inset: 0; z-index: 100; background: var(--bg); display: none; align-items: center; justify-content: center; padding: 24px; }
+body.locked #lock { display: flex; }
+body.locked { overflow: hidden; }
+.lock-box { width: 100%; max-width: 340px; text-align: center; }
+.lock-box .logo { width: 52px; height: 52px; border-radius: 15px; margin: 0 auto 14px; }
+.lock-box .logo svg { width: 28px; height: 28px; }
+.lock-box h1 { margin: 0 0 18px; font-size: 20px; font-weight: 900; }
+.lock-box input[type="password"] { width: 100%; height: 50px; padding: 0 16px; border-radius: 14px; border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; font-size: 17px; text-align: center; }
+.lock-box input[type="password"]:focus { outline: none; border-color: var(--accent); }
+.lock-box label { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 14px 0; font-size: 14px; color: var(--muted); }
+.lock-box button { width: 100%; height: 50px; border: 0; border-radius: 14px; background: var(--grad); color: #fff; font-size: 16px; font-weight: 900; cursor: pointer; }
+.lock-err { min-height: 22px; margin: 10px 0 0; font-size: 14px; font-weight: 700; color: #D6342C; }
+
 button { font: inherit; color: inherit; }
 a { color: inherit; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
@@ -249,6 +262,16 @@ body.sheet-open #sheet, body.detail-open #detail { transform: none; visibility: 
 </style>
 </head>
 <body>
+<div id="lock" role="dialog" aria-modal="true" aria-label="合言葉の入力">
+  <form class="lock-box" id="lock-form">
+    <span class="logo"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="5"/><rect x="3" y="11" width="18" height="2"/><rect x="3" y="15" width="18" height="2"/><rect x="3" y="19" width="11" height="2"/></svg></span>
+    <h1>合言葉を入力</h1>
+    <input type="password" id="lock-pass" autocomplete="current-password" placeholder="合言葉" aria-label="合言葉">
+    <p class="lock-err" id="lock-err" role="alert"></p>
+    <label><input type="checkbox" id="lock-keep" checked> この端末では次回から入力しない</label>
+    <button type="submit">開く</button>
+  </form>
+</div>
 <header class="masthead">
   <div class="strip"></div>
   <div class="wrap">
@@ -294,6 +317,7 @@ body.sheet-open #sheet, body.detail-open #detail { transform: none; visibility: 
 
   <div class="sheet-actions">
     <button id="btn-reset">初期設定に戻す</button>
+    <button id="btn-forget" hidden>合言葉を消す</button>
     <button id="btn-close" class="primary">閉じる</button>
   </div>
 </section>
@@ -540,13 +564,72 @@ body.sheet-open #sheet, body.detail-open #detail { transform: none; visibility: 
     d.append(p, b); list.appendChild(d);
   }
 
+  /* ── 合言葉(データは暗号化されていて、この端末の中でだけ復号する) ───────────────────────── */
+  const LS_PASS = "mynews.pass";
+  let passMem = null, crypt = null;  // crypt = { salt, key }
+  const b64d = (x) => Uint8Array.from(atob(x), c => c.charCodeAt(0));
+  async function deriveKey(pass, env) {
+    const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(pass), "PBKDF2", false, ["deriveKey"]);
+    return crypto.subtle.deriveKey({ name: "PBKDF2", salt: b64d(env.salt), iterations: env.iter || 200000, hash: "SHA-256" },
+      base, { name: "AES-GCM", length: 256 }, false, ["decrypt"]);
+  }
+  async function openEnv(env, key) {
+    const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv: b64d(env.iv) }, key, b64d(env.ct));
+    return new TextDecoder().decode(pt);
+  }
+  async function unlock(env, pass) {  // 合言葉が違えば例外
+    const key = await deriveKey(pass, env);
+    const text = await openEnv(env, key);
+    passMem = pass; crypt = { salt: env.salt, key };
+    return text;
+  }
+  function askPass(env) {
+    return new Promise((resolve) => {
+      document.body.classList.add("locked");
+      const form = $("lock-form"), inp = $("lock-pass"), err = $("lock-err");
+      inp.value = ""; err.textContent = "";
+      setTimeout(() => inp.focus(), 50);
+      form.onsubmit = async (e) => {
+        e.preventDefault();
+        const pass = inp.value;
+        if (!pass) return;
+        err.textContent = "確認しています…";
+        try {
+          const text = await unlock(env, pass);
+          if ($("lock-keep").checked) lsSet(LS_PASS, pass); else { try { localStorage.removeItem(LS_PASS); } catch {} }
+          document.body.classList.remove("locked");
+          resolve(text);
+        } catch { err.textContent = "合言葉が違います"; inp.select(); }
+      };
+    });
+  }
+  async function readBody(url) {  // 本文(PDFの文字起こし)。暗号化されていれば復号する
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(r.status);
+    if (!url.endsWith(".enc")) return r.text();
+    const env = await r.json();
+    const key = (crypt && crypt.salt === env.salt) ? crypt.key : await deriveKey(passMem, env);
+    return openEnv(env, key);
+  }
+
   async function load(initial) {
     const btn = $("btn-reload");
     btn.classList.add("spin");
     try {
-      const res = await fetch("news.json?t=" + Date.now(), { cache: "no-store" });
-      if (!res.ok) throw new Error(res.status);
-      data = await res.json();
+      const enc = await fetch("news.enc?t=" + Date.now(), { cache: "no-store" });
+      if (enc.ok) {
+        const env = await enc.json();
+        let text = null;
+        const pass = passMem || lsGet(LS_PASS);
+        if (pass) { try { text = await unlock(env, pass); } catch { try { localStorage.removeItem(LS_PASS); } catch {} } }
+        if (text === null) text = await askPass(env);
+        data = JSON.parse(text);
+        $("btn-forget").hidden = false;
+      } else {
+        const res = await fetch("news.json?t=" + Date.now(), { cache: "no-store" });
+        if (!res.ok) throw new Error(res.status);
+        data = await res.json();
+      }
       loadState();
       renderAll();
     } catch (e) {
@@ -619,7 +702,7 @@ body.sheet-open #sheet, body.detail-open #detail { transform: none; visibility: 
       full.textContent = "本文を読み込み中…";
       sum.appendChild(full);
       const at = i;
-      fetch(a.body_url).then(r => r.ok ? r.text() : Promise.reject()).then(t => {
+      readBody(a.body_url).then(t => {
         if (detailAt === at) full.textContent = t;
       }).catch(() => { if (detailAt === at) full.textContent = "本文を読み込めませんでした。「元の記事を開く」でPDFを開いてください。"; });
     }
@@ -665,6 +748,7 @@ body.sheet-open #sheet, body.detail-open #detail { transform: none; visibility: 
     else if (detailAt >= 0 && e.key === "ArrowRight") openDetail(detailAt + 1);
   });
   $("btn-reload").onclick = () => load(false);
+  $("btn-forget").onclick = () => { try { localStorage.removeItem(LS_PASS); } catch {} passMem = null; crypt = null; location.reload(); };
   $("btn-mode").onclick = () => setAppearance(isDark() ? "light" : "dark");
   document.querySelectorAll("#seg button").forEach(b => b.onclick = () => setAppearance(b.dataset.m));
   $("btn-reset").onclick = () => {
