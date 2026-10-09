@@ -221,7 +221,7 @@ def parse_pdf_index(html: str, base_url: str, name: str) -> list[dict]:
 
 
 OCR_MAX_PAGES = 12
-BODY_VERSION = "v2"  # 文字起こしの方式を変えたら上げる。上げると、読み取り済みの号もすべて読み直す
+BODY_VERSION = "v4"  # 文字起こしの方式を変えたら上げる。上げると、読み取り済みの号もすべて読み直す
 
 
 def _clean_pdf_text(text: str) -> str:
@@ -257,16 +257,43 @@ def ocr_pdf(data: bytes) -> str:
 
         with ThreadPoolExecutor(max_workers=3) as ex:
             text = "\n\n".join(ex.map(one, pages))
-    # 縦書き特有の、文字ごとの不要な空白を詰める(日本語どうしの間の空白だけ)
-    return re.sub(r"(?<=[぀-ヿ一-鿿、。「」])[ \t]+(?=[぀-ヿ一-鿿、。「」])", "", text)
+    return tidy_ocr(text)
+
+
+def tidy_ocr(text: str) -> str:
+    """縦書きOCR特有の、単語ごとに入る空白を詰め、各項目の頭の印(◎)をそろえる。"""
+    # 日本語(全角)の隣の空白は消す。半角英数どうしの空白(TBS GX など)は残す
+    text = re.sub(r"(?<=[^\x00-\x7f])[ \t]+|[ \t]+(?=[^\x00-\x7f])", "", text)
+    # 行頭の印(◎ が ③ ⑰ @ などに化ける)を ◎ にそろえ、項目の前に空行を入れる
+    text = re.sub(r"(?m)^[◎①-⑳@©®⑬⑰③Ⓞ]+[ \t]*(?=\S)", "\n◎ ", text)
+    return re.sub(r"\n{3,}", "\n\n", text).strip()
+
+
+def join_vertical(text: str) -> str:
+    """縦書きPDFは1文字ずつ改行されて出てくるので、1〜2文字だけの行が続く部分をつなげて文章に戻す。"""
+    out, run = [], []
+    for ln in text.split("\n"):
+        t = ln.strip()
+        if 0 < len(t) <= 2:
+            run.append(t)
+            continue
+        if run:
+            out.append("".join(run)); run = []
+        if ln.strip() or ln == "\x0c":
+            out.append(ln)
+    if run:
+        out.append("".join(run))
+    text = "\n".join(out)
+    return re.sub(r"(?<=。)(?=[^\n\x0c」』）])", "\n", text)  # 句点で改行して読みやすくする
 
 
 def pdf_to_text(url: str) -> str:
     """PDFを取得して本文を文字起こしする。文字が入っていない(画像だけの)PDFはOCRに回す。失敗したら空文字。"""
     try:
         _, data = http_open(url, max_bytes=30_000_000)
-        r = subprocess.run(["pdftotext", "-enc", "UTF-8", "-", "-"], input=data, capture_output=True, timeout=90)
-        raw = r.stdout.decode("utf-8", "replace")
+        # -raw: PDFに書かれた順に取り出す(縦書きでも読み順が崩れにくい)。縦書きは1文字1行で出るので後でつなぐ
+        r = subprocess.run(["pdftotext", "-raw", "-enc", "UTF-8", "-", "-"], input=data, capture_output=True, timeout=90)
+        raw = join_vertical(r.stdout.decode("utf-8", "replace"))
         pages = max(1, raw.count("\x0c"))
         if len(re.sub(r"\s", "", raw)) < 40 * pages:  # 1ページあたり40文字未満 → 画像PDFとみなす
             ocr = ocr_pdf(data)
