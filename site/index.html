@@ -130,17 +130,16 @@ a { color: inherit; }
 .status { margin: 0; font-size: 12.5px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 0 12px; }
 
 /* ── テーマの絞り込み ───────────────────────── */
-.tabs { position: sticky; top: 0; z-index: 5; margin-top: 12px; background: var(--bg); border-bottom: 1px solid var(--line); }
-.tabs .wrap { padding: 0; }
-#chips { display: flex; gap: 20px; overflow-x: auto; padding: 0 20px; scrollbar-width: none; }
-#chips::-webkit-scrollbar { display: none; }
+.tabs { margin-top: 14px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+#chips { display: flex; flex-wrap: wrap; gap: 8px; } /* 横にスクロールさせず、収まらない分は次の行へ */
 .tab {
-  flex: none; border: 0; background: transparent; cursor: pointer; white-space: nowrap;
-  padding: 12px 0 10px; font-size: 15px; font-weight: 500; color: var(--muted);
-  border-bottom: 3px solid transparent; margin-bottom: -1px;
+  display: inline-flex; align-items: center; cursor: pointer; white-space: nowrap;
+  padding: 6px 13px 6px 11px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--surface);
+  font-size: 14px; font-weight: 500; color: var(--ink);
 }
-.tab .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--tc); margin-right: 7px; vertical-align: 1px; }
-.tab[aria-pressed="true"] { color: var(--ink); font-weight: 900; border-bottom-color: var(--tc); }
+.tab:first-child { padding-left: 14px; }
+.tab .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--tc); margin-right: 7px; }
+.tab[aria-pressed="true"] { background: var(--tcs); border-color: var(--tc); font-weight: 900; }
 
 /* ── 記事一覧(時間軸) ───────────────────────── */
 main { padding-bottom: 72px; }
@@ -154,19 +153,16 @@ main { padding-bottom: 72px; }
   content: ""; position: absolute; top: 0; bottom: 0; width: 1px; background: var(--line);
   left: calc(var(--tw) + var(--rw) / 2);
 }
-.row:not(.read)::after { /* 未読の印(テーマの色) */
-  content: ""; position: absolute; width: 10px; height: 10px; border-radius: 50%; background: var(--tc);
-  left: calc(var(--tw) + var(--rw) / 2 - 5px); top: 22px; box-shadow: 0 0 0 4px var(--bg);
-}
+.row .rail { position: relative; padding: 0; }
+.node { position: absolute; left: 50%; transform: translateX(-50%); border-radius: 50%; background: var(--tc); box-shadow: 0 0 0 4px var(--bg); }
+.node.unread { top: 21px; width: 12px; height: 12px; }  /* 未読: テーマの色の点 */
+.node.read { top: 17px; width: 20px; height: 20px; display: grid; place-items: center; }  /* 既読: チェック入りの丸 */
+.node.read svg { width: 13px; height: 13px; fill: none; stroke: var(--on-tc); stroke-width: 3.4; stroke-linecap: round; stroke-linejoin: round; }
 .row > * { padding: 14px 0; }
 .row time { font-size: 13px; line-height: 26px; color: var(--muted); font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
 .row .body { grid-column: 3; border-bottom: 1px solid var(--line); }
 .row:last-child .body { border-bottom: 0; }
 .hl { font-size: 17px; line-height: 26px; font-weight: 700; overflow-wrap: anywhere; line-break: strict; word-break: auto-phrase; text-wrap: pretty; }
-.row.read::after { /* 既読は、塗りつぶしの点ではなく白抜きの輪にする */
-  content: ""; position: absolute; width: 10px; height: 10px; border-radius: 50%; background: var(--bg);
-  border: 2px solid var(--tc); left: calc(var(--tw) + var(--rw) / 2 - 5px); top: 22px; box-shadow: 0 0 0 4px var(--bg);
-}
 .row:active .hl { color: var(--tc); }
 @media (hover: hover) { .row:hover .hl { color: var(--tc); } }
 .pv {
@@ -174,8 +170,11 @@ main { padding-bottom: 72px; }
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
   line-break: strict; word-break: auto-phrase;
 }
-.done { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 700; color: var(--muted); }
-.done svg { width: 14px; height: 14px; fill: none; stroke: var(--tc); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.done {
+  margin-left: auto; display: inline-flex; align-items: center; gap: 5px; padding: 3px 13px 3px 9px; border-radius: 999px;
+  background: var(--tc); color: var(--on-tc); font-size: 14px; font-weight: 900; line-height: 1.5;
+}
+.done svg { width: 18px; height: 18px; fill: none; stroke: var(--on-tc); stroke-width: 3.2; stroke-linecap: round; stroke-linejoin: round; }
 .meta { margin-top: 8px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 12.5px; color: var(--muted); }
 .pill { display: inline-block; padding: 1px 9px; border-radius: 999px; background: var(--tcs); color: var(--tc); font-weight: 700; font-size: 12px; line-height: 1.7; }
 
@@ -461,7 +460,8 @@ body.sheet-open #sheet, body.detail-open #detail { transform: none; visibility: 
         const tm = document.createElement("time");
         if (a.published) { tm.dateTime = a.published; tm.textContent = fmtTime.format(new Date(a.published)); }
         else tm.textContent = "--:--";
-        const rail = document.createElement("span");
+        const rail = document.createElement("span"); rail.className = "rail";
+        rail.appendChild(railNode(read.has(a.link)));
         const body = document.createElement("div"); body.className = "body";
         const hl = document.createElement("div"); hl.className = "hl"; hl.textContent = a.title;
         body.appendChild(hl);
@@ -544,11 +544,21 @@ body.sheet-open #sheet, body.detail-open #detail { transform: none; visibility: 
     s.append("既読");
     return s;
   }
+  function railNode(isRead) {
+    const n = document.createElement("i");
+    if (isRead) {
+      n.className = "node read";
+      n.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+    } else n.className = "node unread";
+    return n;
+  }
   function markRead(a) {
     read.add(a.link); lsSet(LS_READ, [...read]);
     const row = rowOf.get(a.link);
     if (!row) return;
     row.classList.add("read");
+    const rail = row.querySelector(".rail");
+    if (rail) rail.replaceChildren(railNode(true));
     const meta = row.querySelector(".meta");
     if (meta && !meta.querySelector(".done")) meta.appendChild(doneBadge());
   }
