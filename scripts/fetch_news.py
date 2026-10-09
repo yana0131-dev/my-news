@@ -235,21 +235,29 @@ def ocr_pdf(data: bytes) -> str:
     if not (shutil.which("tesseract") and shutil.which("pdftoppm")):
         print("[WARN] OCR には tesseract と pdftoppm が必要です", file=sys.stderr)
         return ""
-    lang = os.environ.get("OCR_LANG", "jpn+eng")
+    # 縦書き(右から左)の紙面が前提。縦書き用の jpn_vert を先に試し、使えなければ jpn → eng の順にする
+    langs = [l for l in os.environ.get("OCR_LANG", "jpn_vert,jpn").split(",") if l]
+    psm = os.environ.get("OCR_PSM", "3")  # 3=自動のレイアウト解析(段組みに強い) / 5=1つの縦書きブロック
     with tempfile.TemporaryDirectory() as d:
         src = Path(d) / "in.pdf"
         src.write_bytes(data)
-        subprocess.run(["pdftoppm", "-r", "200", "-gray", "-png", "-l", str(OCR_MAX_PAGES), str(src), str(Path(d) / "p")],
-                       check=True, timeout=180, capture_output=True)
+        subprocess.run(["pdftoppm", "-r", "300", "-gray", "-png", "-l", str(OCR_MAX_PAGES), str(src), str(Path(d) / "p")],
+                       check=True, timeout=240, capture_output=True)
         pages = sorted(Path(d).glob("p-*.png"))
 
         def one(png: Path) -> str:
-            r = subprocess.run(["tesseract", str(png), "-", "-l", lang, "--psm", "3"],
-                               capture_output=True, timeout=180)
-            return r.stdout.decode("utf-8", "replace")
+            for lang in langs:
+                r = subprocess.run(["tesseract", str(png), "-", "-l", lang, "--psm", psm],
+                                   capture_output=True, timeout=240)
+                if r.returncode == 0:
+                    return r.stdout.decode("utf-8", "replace")
+                print(f"[WARN] tesseract -l {lang}: {r.stderr.decode('utf-8', 'replace')[:120]}", file=sys.stderr)
+            return ""
 
         with ThreadPoolExecutor(max_workers=3) as ex:
-            return "\n\n".join(ex.map(one, pages))
+            text = "\n\n".join(ex.map(one, pages))
+    # 縦書き特有の、文字ごとの不要な空白を詰める(日本語どうしの間の空白だけ)
+    return re.sub(r"(?<=[぀-ヿ一-鿿、。「」])[ \t]+(?=[぀-ヿ一-鿿、。「」])", "", text)
 
 
 def pdf_to_text(url: str) -> str:
