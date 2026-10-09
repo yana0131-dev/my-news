@@ -1,5 +1,5 @@
 {
-  "_comment": "ニューステーマの一覧。ここに足したテーマがサイトの『テーマ選択』に並びます。type は google_topic(Googleニュースの定番カテゴリ) / search(キーワード検索) / feed(任意のRSS/Atom URL) / pdf_index(PDFへのリンクが並ぶ一覧ページ。放送ジャーナル用) の4種類。default:true のテーマは初回アクセス時に最初から選択されます。任意の項目: source(媒体名。feedで使う) / keywords(feedの記事をこの語を含むものだけに絞る) / max_age_days(何日前の記事まで残すか) / max_items(最大件数) / exclude(この語を含む記事を除く。芸能ニュース除外などに使う)。",
+  "_comment": "ニューステーマの一覧。ここに足したテーマがサイトの『テーマ選択』に並びます。type は google_topic(Googleニュースの定番カテゴリ) / search(キーワード検索) / feed(任意のRSS/Atom URL) / pdf_index(PDFへのリンクが並ぶ一覧ページ。放送ジャーナル用) の4種類。default:true のテーマは初回アクセス時に最初から選択されます。任意の項目: source(媒体名。feedで使う) / keywords(feedの記事をこの語を含むものだけに絞る) / max_age_days(何日前の記事まで残すか) / max_items(最大件数) / accumulate(true にすると、フィードから消えた過去の記事も max_age_days まで前回分から引き継いでためる) / exclude(この語を含む記事を除く。芸能ニュース除外などに使う)。",
   "settings": {
     "language": "ja",
     "country": "JP",
@@ -160,8 +160,8 @@
       "type": "pdf_index",
       "url": "https://www.itochu-cable.co.jp/journal/",
       "source": "放送ジャーナル",
-      "max_age_days": 14,
-      "max_items": 10,
+      "max_age_days": 90,
+      "max_items": 90,
       "default": true
     },
     {
@@ -229,7 +229,7 @@
         "業務用",
         "副調整"
       ],
-      "max_age_days": 7,
+      "max_age_days": 90,
       "default": false,
       "exclude": [
         "視聴率",
@@ -253,7 +253,9 @@
         "出演",
         "主演",
         "番組表"
-      ]
+      ],
+      "max_items": 500,
+      "accumulate": true
     },
     {
       "id": "weather",
