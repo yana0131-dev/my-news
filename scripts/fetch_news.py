@@ -128,53 +128,84 @@ def parse_description(html: str, title: str) -> tuple[str, list[dict]]:
     return trim(text), []
 
 
+def _local(tag) -> str:
+    """名前空間つきのタグ名 '{...}item' から 'item' だけを取り出す。"""
+    return tag.rsplit("}", 1)[-1] if isinstance(tag, str) else ""
+
+
+def _child(el, *names):
+    for c in el:
+        if _local(c.tag) in names:
+            return c
+    return None
+
+
+def _child_text(el, *names) -> str:
+    c = _child(el, *names)
+    return (c.text or "") if c is not None else ""
+
+
 def parse_feed(data: bytes) -> list[dict]:
+    """RSS 2.0 / RSS 1.0(RDF) / Atom のどれでも読めるようにしてある。"""
     root = ET.fromstring(data)
     items: list[dict] = []
 
-    # RSS 2.0
-    for it in root.iter("item"):
-        title = clean_text(it.findtext("title"))
-        link = (it.findtext("link") or "").strip()
-        src_el = it.find("source")
-        source = clean_text(src_el.text) if src_el is not None else ""
-        # Googleニュースの題名は「見出し - 媒体名」形式。媒体名を分離する
-        if source and title.endswith(f" - {source}"):
-            title = title[: -len(f" - {source}")].rstrip()
-        summary, related = parse_description(it.findtext("description") or "", title)
-        items.append({
-            "title": title,
-            "link": link,
-            "source": source,
-            "published": parse_date(it.findtext("pubDate")),
-            "summary": summary,
-            "related": related,
-        })
+    for el in root.iter():
+        kind = _local(el.tag)
 
-    # Atom
-    for en in root.iter(f"{ATOM}entry"):
-        link = ""
-        for l in en.findall(f"{ATOM}link"):
-            if l.get("rel", "alternate") == "alternate":
-                link = l.get("href", "")
-                break
-        title = clean_text(en.findtext(f"{ATOM}title"))
-        text = clean_text(en.findtext(f"{ATOM}summary") or en.findtext(f"{ATOM}content"))
-        items.append({
-            "title": title,
-            "link": link.strip(),
-            "source": "",
-            "published": parse_date(en.findtext(f"{ATOM}updated") or en.findtext(f"{ATOM}published")),
-            "summary": trim(text) if len(text) >= 20 and text != title else "",
-            "related": [],
-        })
+        if kind == "item":  # RSS 2.0 と RSS 1.0(日本の媒体に多い)
+            title = clean_text(_child_text(el, "title"))
+            link = _child_text(el, "link").strip()
+            src_el = _child(el, "source")
+            source = clean_text(src_el.text) if src_el is not None else ""
+            # Googleニュースの題名は「見出し - 媒体名」形式。媒体名を分離する
+            if source and title.endswith(f" - {source}"):
+                title = title[: -len(f" - {source}")].rstrip()
+            summary, related = parse_description(_child_text(el, "description"), title)
+            items.append({
+                "title": title,
+                "link": link,
+                "source": source,
+                "published": parse_date(_child_text(el, "pubDate", "date")),  # date は dc:date(RSS 1.0)
+                "summary": summary,
+                "related": related,
+            })
+
+        elif kind == "entry":  # Atom
+            link = ""
+            for l in el:
+                if _local(l.tag) == "link" and l.get("rel", "alternate") == "alternate":
+                    link = l.get("href", "")
+                    break
+            title = clean_text(_child_text(el, "title"))
+            text = clean_text(_child_text(el, "summary") or _child_text(el, "content"))
+            items.append({
+                "title": title,
+                "link": link.strip(),
+                "source": "",
+                "published": parse_date(_child_text(el, "updated") or _child_text(el, "published")),
+                "summary": trim(text) if len(text) >= 20 and text != title else "",
+                "related": [],
+            })
     return items
 
 
 def fetch_topic(topic: dict, settings: dict) -> tuple[str, list[dict], str | None]:
     try:
-        items = parse_feed(http_get(build_url(topic, settings)))
-        return topic["id"], items, None
+        url = build_url(topic, settings)
+        items = parse_feed(http_get(url))
+        # 媒体名が付いていないフィード(業界紙など)は、設定の source か、サイト名(ドメイン)で補う
+        default_src = topic.get("source") or (urllib.parse.urlparse(url).hostname or "" if topic["type"] == "feed" else "")
+        keywords = [k.lower() for k in topic.get("keywords", [])]
+        kept = []
+        for it in items:
+            if not it["source"] and default_src:
+                it["source"] = default_src
+            # 総合的なフィードから、関心のある話題だけを残す(keywords のどれかを含む記事)
+            if keywords and not any(k in f"{it['title']} {it['summary']}".lower() for k in keywords):
+                continue
+            kept.append(it)
+        return topic["id"], kept, None
     except Exception as e:  # 1テーマの失敗で全体を止めない
         return topic["id"], [], f"{type(e).__name__}: {e}"
 
@@ -327,13 +358,17 @@ def main() -> int:
             errors[topic_id] = err
             print(f"[WARN] {topic_id}: {err}", file=sys.stderr)
             continue
+        tcfg = next((t for t in topics if t["id"] == topic_id), {})
+        # テーマごとに件数・保存日数を変えられる(更新が週刊などの業界紙は日数を長めにする)
+        t_limit = int(tcfg.get("max_items", limit))
+        t_cutoff = datetime.now(timezone.utc) - timedelta(days=int(tcfg.get("max_age_days", settings.get("max_age_days", 3))))
         kept = 0
         for it in sorted(items, key=lambda x: x["published"] or datetime.min.replace(tzinfo=timezone.utc), reverse=True):
-            if kept >= limit:
+            if kept >= t_limit:
                 break
             if not it["title"] or not it["link"]:
                 continue
-            if it["published"] and it["published"] < cutoff:
+            if it["published"] and it["published"] < t_cutoff:
                 continue
             key = it["link"]
             if key in articles:
