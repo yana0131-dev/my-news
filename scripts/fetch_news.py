@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import subprocess
 import sys
 import time
 import urllib.parse
@@ -213,6 +214,40 @@ def parse_pdf_index(html: str, base_url: str, name: str) -> list[dict]:
             "related": [],
         })
     return items
+
+
+def pdf_to_text(url: str) -> str:
+    """PDFを取得して本文を文字起こしする(poppler の pdftotext を使う)。失敗したら空文字。"""
+    try:
+        _, data = http_open(url, max_bytes=30_000_000)
+        r = subprocess.run(["pdftotext", "-enc", "UTF-8", "-", "-"], input=data, capture_output=True, timeout=90)
+        text = r.stdout.decode("utf-8", "replace")
+    except Exception as e:
+        print(f"[WARN] pdf {url}: {type(e).__name__}: {e}", file=sys.stderr)
+        return ""
+    text = text.replace("\x0c", "\n\n")
+    text = re.sub(r"[ \t\u3000]+\n", "\n", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
+def attach_pdf_bodies(ordered: list[dict], topics: list[dict], out_dir: Path) -> None:
+    """pdf_index のテーマの記事に、PDFの文字起こしを付ける。
+    本文は news.json を重くしないよう issues/ 以下の別ファイルに置き、記事には body_url だけ持たせる。"""
+    pdf_topics = {t["id"] for t in topics if t.get("type") == "pdf_index"}
+    deadline = time.monotonic() + 240
+    for a in ordered:
+        if not (pdf_topics & set(a["topics"])) or time.monotonic() > deadline:
+            continue
+        text = pdf_to_text(a["link"])
+        if len(text) < 50:
+            continue
+        name = re.sub(r"[^0-9A-Za-z_-]", "", Path(urllib.parse.urlparse(a["link"]).path).stem) or "issue"
+        (out_dir / "issues").mkdir(parents=True, exist_ok=True)
+        (out_dir / "issues" / f"{name}.txt").write_text(text, encoding="utf-8")
+        a["body_url"] = f"issues/{name}.txt"
+        head = re.sub(r"\s+", " ", text)[:110]
+        a["summary"] = trim(head)
 
 
 def fetch_topic(topic: dict, settings: dict) -> tuple[str, list[dict], str | None]:
@@ -441,6 +476,8 @@ def main() -> int:
             a.pop("tries", None)
         elif not a.get("tries"):
             a.pop("tries", None)
+
+    attach_pdf_bodies(ordered, topics, out_path.parent)
 
     payload = {
         "updated": datetime.now(timezone.utc).isoformat(),
