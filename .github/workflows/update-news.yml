@@ -35,7 +35,7 @@ jobs:
       - name: Install tools (OCR / PDF / encryption)
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq --no-install-recommends poppler-utils tesseract-ocr tesseract-ocr-jpn
+          sudo apt-get install -y -qq --no-install-recommends poppler-utils tesseract-ocr tesseract-ocr-jpn tesseract-ocr-jpn-vert
           pip install cryptography
 
       - name: Fetch news
