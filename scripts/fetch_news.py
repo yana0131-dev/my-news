@@ -50,7 +50,7 @@ def build_url(topic: dict, settings: dict) -> str:
     if kind == "search":
         q = urllib.parse.quote(topic["query"])
         return f"https://news.google.com/rss/search?q={q}&{tail}"
-    if kind == "feed":
+    if kind in ("feed", "pdf_index"):
         return topic["url"]
     raise ValueError(f"unknown topic type: {kind}")
 
@@ -190,10 +190,38 @@ def parse_feed(data: bytes) -> list[dict]:
     return items
 
 
+def parse_pdf_index(html: str, base_url: str, name: str) -> list[dict]:
+    """PDFへのリンク一覧ページ(放送ジャーナル等)から、日付つきの号を拾う。
+    PDFのファイル名が YYMMDD.pdf の形であることを日付の手がかりにする。"""
+    items, seen = [], set()
+    for m in re.finditer(r'<a\b[^>]*?href=["\']([^"\']*?(\d{6})\.pdf)["\'][^>]*>(.*?)</a>', html, re.S | re.I):
+        href, ymd, inner = m.group(1), m.group(2), clean_text(m.group(3))
+        link = urllib.parse.urljoin(base_url, unescape(href))
+        if link in seen:
+            continue
+        try:
+            dt = datetime(2000 + int(ymd[:2]), int(ymd[2:4]), int(ymd[4:]), 8, 0, tzinfo=timezone(timedelta(hours=9)))
+        except ValueError:
+            continue
+        seen.add(link)
+        no = re.search(r"第\s*\d+\s*号", inner)
+        title = f"{name} {dt.month}月{dt.day}日号" + (f"({no.group(0).replace(' ', '')})" if no else "")
+        items.append({
+            "title": title, "link": link, "source": name,
+            "published": dt.astimezone(timezone.utc),
+            "summary": f"{name}のPDF版です。タップして開くと、この日の号を読めます。",
+            "related": [],
+        })
+    return items
+
+
 def fetch_topic(topic: dict, settings: dict) -> tuple[str, list[dict], str | None]:
     try:
         url = build_url(topic, settings)
-        items = parse_feed(http_get(url))
+        if topic["type"] == "pdf_index":
+            items = parse_pdf_index(http_get(url).decode("utf-8", "replace"), url, topic.get("source") or topic["name"])
+        else:
+            items = parse_feed(http_get(url))
         # 媒体名が付いていないフィード(業界紙など)は、設定の source か、サイト名(ドメイン)で補う
         default_src = topic.get("source") or (urllib.parse.urlparse(url).hostname or "" if topic["type"] == "feed" else "")
         keywords = [k.lower() for k in topic.get("keywords", [])]
