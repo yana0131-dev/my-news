@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-title" content="My News">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%231B4F8A'/%3E%3Crect x='14' y='15' width='36' height='9' fill='%23fff'/%3E%3Crect x='14' y='30' width='36' height='4' fill='%23fff'/%3E%3Crect x='14' y='39' width='36' height='4' fill='%23fff'/%3E%3Crect x='14' y='48' width='22' height='4' fill='%23fff'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%232F6FD6'/%3E%3Cstop offset='1' stop-color='%237C4DFF'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='14' fill='url(%23g)'/%3E%3Crect x='14' y='15' width='36' height='9' fill='%23fff'/%3E%3Crect x='14' y='30' width='36' height='4' fill='%23fff'/%3E%3Crect x='14' y='39' width='36' height='4' fill='%23fff'/%3E%3Crect x='14' y='48' width='22' height='4' fill='%23fff'/%3E%3C/svg%3E">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -38,11 +38,23 @@
   --line: #DCE2E8;
   --accent: #1B4F8A;
   --accent-soft: #E3ECF6;
-  --on-accent: #FFFFFF;
+  --grad: linear-gradient(135deg, #2F6FD6, #7C4DFF);
+  --on-tc: #FFFFFF;
   --shadow: 0 -8px 40px rgba(18, 32, 46, .18);
   --font: "Zen Kaku Gothic New", -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", "Yu Gothic", sans-serif;
   --tw: 3.3rem;   /* 時刻の列 */
   --rw: 1.5rem;   /* 時間軸の列 */
+  /* テーマごとの色(c = 文字・印の色、s = 淡い背景色) */
+  --c0: #C23A1F; --c0s: #FDE9E4;
+  --c1: #00796B; --c1s: #DDF3EF;
+  --c2: #6540E0; --c2s: #ECE7FC;
+  --c3: #9A5B00; --c3s: #FFF0D2;
+  --c4: #C2185B; --c4s: #FBE3EE;
+  --c5: #0277BD; --c5s: #DFF0FB;
+  --c6: #2E7D32; --c6s: #E1F3E2;
+  --c7: #3F51B5; --c7s: #E5E8F8;
+  --c8: #8D4E2A; --c8s: #F6E7DD;
+  --c9: #006F7A; --c9s: #D9F2F5;
   color-scheme: light;
 }
 :root[data-theme="dark"] {
@@ -54,8 +66,18 @@
   --line: #223445;
   --accent: #7DB3F0;
   --accent-soft: #17314D;
-  --on-accent: #0C1722;
+  --on-tc: #0C1722;
   --shadow: 0 -8px 40px rgba(0, 0, 0, .55);
+  --c0: #FF8F73; --c0s: #3A1F1A;
+  --c1: #4DD0C0; --c1s: #12332F;
+  --c2: #B39DFF; --c2s: #2A2150;
+  --c3: #FFC24D; --c3s: #3A2C10;
+  --c4: #FF7EB6; --c4s: #3B1727;
+  --c5: #5CC8FF; --c5s: #10324A;
+  --c6: #7ED884; --c6s: #16331A;
+  --c7: #A5B4FF; --c7s: #1E2547;
+  --c8: #E3A57D; --c8s: #38261B;
+  --c9: #5FD7E4; --c9s: #0F3338;
   color-scheme: dark;
 }
 
@@ -68,16 +90,25 @@ body {
   -webkit-text-size-adjust: 100%;
   padding-bottom: env(safe-area-inset-bottom);
 }
-body.sheet-open { overflow: hidden; }
+body.sheet-open, body.detail-open { overflow: hidden; }
 button { font: inherit; color: inherit; }
+a { color: inherit; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
 
 .wrap { max-width: 640px; margin: 0 auto; padding: 0 20px; }
 
 /* ── 見出し部 ───────────────────────── */
-.masthead { padding-top: calc(env(safe-area-inset-top) + 14px); }
-.mast-row { display: flex; align-items: center; gap: 4px; }
-.wordmark { flex: 1; font-weight: 900; font-size: 15px; letter-spacing: .02em; color: var(--accent); }
+.masthead { padding-top: env(safe-area-inset-top); }
+.strip {
+  height: 4px;
+  background: linear-gradient(90deg,
+    var(--c0) 0 10%, var(--c1) 10% 20%, var(--c2) 20% 30%, var(--c3) 30% 40%, var(--c4) 40% 50%,
+    var(--c5) 50% 60%, var(--c6) 60% 70%, var(--c7) 70% 80%, var(--c8) 80% 90%, var(--c9) 90% 100%);
+}
+.mast-row { display: flex; align-items: center; gap: 4px; padding-top: 12px; }
+.brand { flex: 1; display: flex; align-items: center; gap: 10px; font-weight: 900; font-size: 18px; letter-spacing: .01em; }
+.logo { width: 28px; height: 28px; border-radius: 8px; background: var(--grad); display: grid; place-items: center; }
+.logo svg { width: 16px; height: 16px; fill: #fff; }
 .btn {
   height: 38px; min-width: 38px; padding: 0 12px; border: 0; background: transparent;
   color: var(--muted); font-size: 14px; font-weight: 500; border-radius: 10px; cursor: pointer;
@@ -86,32 +117,35 @@ button { font: inherit; color: inherit; }
 .btn:hover { color: var(--ink); }
 .btn:active { background: var(--accent-soft); }
 .btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+#btn-settings { background: var(--accent-soft); color: var(--accent); font-weight: 700; }
 .ico-sun { display: none; }
 :root[data-theme="dark"] .ico-sun { display: block; }
 :root[data-theme="dark"] .ico-moon { display: none; }
 .spin svg { animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-.date { margin: 18px 0 0; display: flex; align-items: baseline; gap: 12px; line-height: 1; }
-.date .md { font-size: clamp(40px, 13vw, 56px); font-weight: 900; letter-spacing: -.01em; }
-.date .wd { font-size: 18px; font-weight: 500; color: var(--muted); }
-.status { margin: 12px 0 0; font-size: 13px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 2px 16px; min-height: 20px; }
+.dateline { margin-top: 10px; display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 16px; }
+.date { margin: 0; font-size: 20px; font-weight: 900; line-height: 1.4; }
+.date .wd { margin-left: 8px; font-size: 14px; font-weight: 500; color: var(--muted); }
+.status { margin: 0; font-size: 12.5px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 0 12px; }
 
 /* ── テーマの絞り込み ───────────────────────── */
-.tabs { position: sticky; top: 0; z-index: 5; margin-top: 18px; background: var(--bg); border-bottom: 1px solid var(--line); }
+.tabs { position: sticky; top: 0; z-index: 5; margin-top: 12px; background: var(--bg); border-bottom: 1px solid var(--line); }
 .tabs .wrap { padding: 0; }
-#chips { display: flex; gap: 22px; overflow-x: auto; padding: 0 20px; scrollbar-width: none; }
+#chips { display: flex; gap: 20px; overflow-x: auto; padding: 0 20px; scrollbar-width: none; }
 #chips::-webkit-scrollbar { display: none; }
 .tab {
   flex: none; border: 0; background: transparent; cursor: pointer; white-space: nowrap;
-  padding: 13px 0 11px; font-size: 15px; font-weight: 500; color: var(--muted);
+  padding: 12px 0 10px; font-size: 15px; font-weight: 500; color: var(--muted);
   border-bottom: 3px solid transparent; margin-bottom: -1px;
 }
-.tab[aria-pressed="true"] { color: var(--ink); font-weight: 900; border-bottom-color: var(--accent); }
+.tab .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--tc); margin-right: 7px; vertical-align: 1px; }
+.tab[aria-pressed="true"] { color: var(--ink); font-weight: 900; border-bottom-color: var(--tc); }
 
 /* ── 記事一覧(時間軸) ───────────────────────── */
 main { padding-bottom: 72px; }
-.day h2 { margin: 30px 0 2px; font-size: 16px; font-weight: 900; }
+.day h2 { margin: 26px 0 2px; font-size: 16px; font-weight: 900; display: flex; align-items: center; }
+.day h2::before { content: ""; width: 4px; height: 16px; border-radius: 2px; background: var(--grad); margin-right: 9px; }
 .row {
   position: relative; display: grid; grid-template-columns: var(--tw) var(--rw) 1fr;
   color: var(--ink); text-decoration: none;
@@ -120,63 +154,97 @@ main { padding-bottom: 72px; }
   content: ""; position: absolute; top: 0; bottom: 0; width: 1px; background: var(--line);
   left: calc(var(--tw) + var(--rw) / 2);
 }
-.row:not(.read)::after { /* 未読の印 */
-  content: ""; position: absolute; width: 9px; height: 9px; border-radius: 50%; background: var(--accent);
-  left: calc(var(--tw) + var(--rw) / 2 - 4px); top: 23px; box-shadow: 0 0 0 4px var(--bg);
+.row:not(.read)::after { /* 未読の印(テーマの色) */
+  content: ""; position: absolute; width: 10px; height: 10px; border-radius: 50%; background: var(--tc);
+  left: calc(var(--tw) + var(--rw) / 2 - 5px); top: 22px; box-shadow: 0 0 0 4px var(--bg);
 }
 .row > * { padding: 14px 0; }
 .row time { font-size: 13px; line-height: 26px; color: var(--muted); font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
 .row .body { grid-column: 3; border-bottom: 1px solid var(--line); }
 .row:last-child .body { border-bottom: 0; }
-.row:active .body .hl { color: var(--accent); }
 .hl { font-size: 17px; line-height: 26px; font-weight: 700; overflow-wrap: anywhere; line-break: strict; word-break: auto-phrase; text-wrap: pretty; }
 .row.read .hl { font-weight: 500; color: var(--faint); }
-.meta { margin-top: 4px; display: flex; flex-wrap: wrap; gap: 0 12px; font-size: 12.5px; color: var(--muted); }
-.meta .tp { color: var(--accent); font-weight: 700; }
-@media (hover: hover) { .row:hover .hl { color: var(--accent); } }
+.row:active .hl { color: var(--tc); }
+@media (hover: hover) { .row:hover .hl { color: var(--tc); } }
+.pv {
+  margin-top: 6px; font-size: 14px; line-height: 1.65; color: var(--muted);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  line-break: strict; word-break: auto-phrase;
+}
+.row.read .pv { color: var(--faint); }
+.meta { margin-top: 8px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 12.5px; color: var(--muted); }
+.pill { display: inline-block; padding: 1px 9px; border-radius: 999px; background: var(--tcs); color: var(--tc); font-weight: 700; font-size: 12px; line-height: 1.7; }
 
 .notice { padding: 56px 0; text-align: center; color: var(--muted); }
 .notice p { margin: 0 0 16px; }
 .notice .btn { border: 1px solid var(--line); color: var(--ink); }
 
-/* ── テーマ選択シート ───────────────────────── */
+/* ── 下から出るシート(共通) ───────────────────────── */
 #sheet-back { position: fixed; inset: 0; z-index: 20; background: rgba(6, 12, 18, .5); opacity: 0; visibility: hidden; transition: opacity .2s, visibility .2s; }
-#sheet {
+body.sheet-open #sheet-back, body.detail-open #sheet-back { opacity: 1; visibility: visible; }
+.sheet {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 21; max-width: 640px; margin: 0 auto;
-  max-height: 86vh; overflow: auto; background: var(--surface); box-shadow: var(--shadow);
-  border-radius: 20px 20px 0 0; padding: 22px 20px calc(env(safe-area-inset-bottom) + 20px);
+  max-height: 88vh; overflow: auto; background: var(--surface); box-shadow: var(--shadow);
+  border-radius: 20px 20px 0 0; padding: 14px 20px calc(env(safe-area-inset-bottom) + 20px);
   transform: translateY(100%); visibility: hidden; transition: transform .26s cubic-bezier(.2, .8, .2, 1), visibility .26s;
 }
-body.sheet-open #sheet-back { opacity: 1; visibility: visible; }
-body.sheet-open #sheet { transform: none; visibility: visible; }
-@media (prefers-reduced-motion: reduce) { #sheet, #sheet-back { transition: none; } .spin svg { animation: none; } }
-#sheet h2 { margin: 0 0 4px; font-size: 19px; font-weight: 900; }
-#sheet .hint { margin: 0 0 8px; font-size: 13px; color: var(--muted); }
-#sheet h3 { margin: 24px 0 10px; font-size: 15px; font-weight: 900; }
+body.sheet-open #sheet, body.detail-open #detail { transform: none; visibility: visible; }
+@media (prefers-reduced-motion: reduce) { .sheet, #sheet-back { transition: none; } .spin svg { animation: none; } }
+.grab { width: 44px; height: 4px; border-radius: 2px; margin: 0 auto 16px; background: var(--tc, var(--line)); }
+.sheet h2 { margin: 0 0 4px; font-size: 19px; font-weight: 900; }
+.sheet .hint { margin: 0 0 8px; font-size: 13px; color: var(--muted); }
+.sheet h3 { margin: 24px 0 10px; font-size: 15px; font-weight: 900; }
 
+.sheet-actions { display: flex; gap: 10px; margin-top: 22px; }
+.sheet-actions > * {
+  flex: 1; height: 48px; border-radius: 12px; border: 1px solid var(--line); background: transparent;
+  font-size: 15px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; text-decoration: none;
+}
+.sheet-actions .primary { background: var(--grad); border-color: transparent; color: #fff; font-weight: 900; }
+.sheet-actions .primary-tc { background: var(--tc); border-color: transparent; color: var(--on-tc); font-weight: 900; flex: 1.6; }
+
+/* テーマ選択 */
 .opt { display: flex; align-items: center; gap: 12px; padding: 13px 0; border-top: 1px solid var(--line); cursor: pointer; }
+.opt .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--tc); flex: none; }
 .opt .n { margin-left: auto; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .opt input { appearance: none; -webkit-appearance: none; order: 3; flex: none; width: 46px; height: 28px; margin: 0; border-radius: 14px; background: var(--line); position: relative; cursor: pointer; transition: background .15s; }
 .opt input::after { content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .3); transition: transform .15s; }
-.opt input:checked { background: var(--accent); }
+.opt input:checked { background: var(--tc); }
 .opt input:checked::after { transform: translateX(18px); }
-:root[data-theme="dark"] .opt input:checked::after { background: var(--on-accent); }
+:root[data-theme="dark"] .opt input:checked::after { background: var(--on-tc); }
 
 .seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 4px; background: var(--bg); border-radius: 12px; }
 .seg button { height: 40px; border: 0; border-radius: 9px; background: transparent; color: var(--muted); font-weight: 500; cursor: pointer; }
 .seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 900; box-shadow: 0 1px 3px rgba(0, 0, 0, .18); }
 :root[data-theme="dark"] .seg button[aria-pressed="true"] { background: var(--accent-soft); box-shadow: none; }
 
-.sheet-actions { display: flex; gap: 10px; margin-top: 22px; }
-.sheet-actions button { flex: 1; height: 48px; border-radius: 12px; border: 1px solid var(--line); background: transparent; font-size: 15px; font-weight: 500; cursor: pointer; }
-.sheet-actions .primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 900; }
+/* 記事の概要 */
+.d-top { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.d-top .pill { font-size: 12.5px; }
+.d-nav { margin-left: auto; display: flex; gap: 4px; }
+.d-nav button { width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--line); background: transparent; cursor: pointer; display: grid; place-items: center; }
+.d-nav button:disabled { opacity: .3; cursor: default; }
+.d-nav svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+#d-title { font-size: 21px; line-height: 1.55; font-weight: 900; line-break: strict; word-break: auto-phrase; text-wrap: pretty; margin: 0; }
+.d-meta { margin: 8px 0 0; font-size: 13px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 0 12px; }
+.d-sum { margin: 18px 0 0; padding: 14px 16px; border-radius: 14px; background: var(--tcs); font-size: 16px; line-height: 1.9; line-break: strict; }
+.d-sum.none { background: var(--bg); color: var(--muted); font-size: 14px; line-height: 1.8; }
+.d-note { margin: 8px 2px 0; font-size: 12px; color: var(--faint); }
+.d-rel { margin-top: 20px; }
+.d-rel h3 { margin: 0 0 4px; font-size: 14px; }
+.d-rel a { display: block; padding: 11px 0; border-top: 1px solid var(--line); text-decoration: none; font-size: 15px; font-weight: 500; line-height: 1.55; }
+.d-rel a span { display: block; margin-top: 2px; font-size: 12.5px; color: var(--muted); font-weight: 400; }
 </style>
 </head>
 <body>
 <header class="masthead">
+  <div class="strip"></div>
   <div class="wrap">
     <div class="mast-row">
-      <span class="wordmark">My News</span>
+      <div class="brand">
+        <span class="logo"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="5"/><rect x="3" y="11" width="18" height="2"/><rect x="3" y="15" width="18" height="2"/><rect x="3" y="19" width="11" height="2"/></svg></span>
+        My News
+      </div>
       <button class="btn" id="btn-mode" aria-label="ライトとダークを切り替える">
         <svg class="ico-moon" viewBox="0 0 24 24"><path d="M20 14.2A8.3 8.3 0 1 1 9.8 4a6.8 6.8 0 0 0 10.2 10.2z"/></svg>
         <svg class="ico-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></svg>
@@ -186,8 +254,10 @@ body.sheet-open #sheet { transform: none; visibility: visible; }
       </button>
       <button class="btn" id="btn-settings">テーマ</button>
     </div>
-    <h1 class="date"><span class="md" id="d-md"></span><span class="wd" id="d-wd"></span></h1>
-    <p class="status" id="status"></p>
+    <div class="dateline">
+      <h1 class="date"><span id="d-md"></span><span class="wd" id="d-wd"></span></h1>
+      <p class="status" id="status"></p>
+    </div>
   </div>
 </header>
 
@@ -196,7 +266,9 @@ body.sheet-open #sheet { transform: none; visibility: visible; }
 <main class="wrap" id="list"><div class="notice"><p>読み込み中…</p></div></main>
 
 <div id="sheet-back"></div>
-<section id="sheet" role="dialog" aria-modal="true" aria-label="表示の設定">
+
+<section class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="表示の設定">
+  <div class="grab"></div>
   <h2>表示するテーマ</h2>
   <p class="hint">オンにしたテーマだけが、この端末に表示されます。</p>
   <div id="opts"></div>
@@ -214,6 +286,25 @@ body.sheet-open #sheet { transform: none; visibility: visible; }
   </div>
 </section>
 
+<section class="sheet" id="detail" role="dialog" aria-modal="true" aria-label="記事の概要">
+  <div class="grab"></div>
+  <div class="d-top">
+    <span class="pill" id="d-tag"></span>
+    <div class="d-nav">
+      <button id="d-prev" aria-label="前の記事"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+      <button id="d-next" aria-label="次の記事"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
+    </div>
+  </div>
+  <h2 id="d-title"></h2>
+  <p class="d-meta" id="d-meta"></p>
+  <div id="d-sum"></div>
+  <div class="d-rel" id="d-rel"></div>
+  <div class="sheet-actions">
+    <button id="d-close">閉じる</button>
+    <a class="primary-tc" id="d-open" target="_blank" rel="noopener noreferrer">元の記事を開く</a>
+  </div>
+</section>
+
 <script>
 (() => {
   const LS_SEL = "mynews.selectedTopics";
@@ -226,10 +317,25 @@ body.sheet-open #sheet { transform: none; visibility: visible; }
   let filter = "all";
   let read = new Set();
   let appearance = "auto";
+  let topicIdx = new Map();   // テーマid → 色の番号
+  let view = [];              // 画面に出ている記事(新しい順)
+  let rowOf = new Map();      // 記事のリンク → 行の要素
+  let detailAt = -1;
 
   const lsGet = (k) => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
   const lsRaw = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
+
+  /* ── テーマごとの色 ───────────────────────── */
+  function paint(el, topicId) {
+    const i = (topicIdx.get(topicId) ?? 0) % 10;
+    el.style.setProperty("--tc", `var(--c${i})`);
+    el.style.setProperty("--tcs", `var(--c${i}s)`);
+  }
+  function paintAccent(el) {
+    el.style.setProperty("--tc", "var(--accent)");
+    el.style.setProperty("--tcs", "var(--accent-soft)");
+  }
 
   /* ── ライト / ダーク ───────────────────────── */
   const mq = matchMedia("(prefers-color-scheme: dark)");
@@ -257,23 +363,23 @@ body.sheet-open #sheet { transform: none; visibility: visible; }
   const fmtDay = new Intl.DateTimeFormat("sv-SE", { timeZone: TZ });
   const fmtTime = new Intl.DateTimeFormat("ja-JP", { timeZone: TZ, hour: "2-digit", minute: "2-digit", hour12: false });
   const dayKey = (d) => fmtDay.format(d);
+  const md = (key) => `${parseInt(key.slice(5, 7), 10)}月${parseInt(key.slice(8, 10), 10)}日`;
   function weekday(d, style) { return d.toLocaleDateString("ja-JP", { timeZone: TZ, weekday: style }); }
   function dayLabel(key) {
     const now = Date.now();
     if (key === dayKey(new Date(now))) return "今日";
     if (key === dayKey(new Date(now - 86400000))) return "昨日";
-    const d = new Date(key + "T12:00:00+09:00");
-    return `${parseInt(key.slice(5, 7), 10)}月${parseInt(key.slice(8, 10), 10)}日(${weekday(d, "short")})`;
+    return `${md(key)}(${weekday(new Date(key + "T12:00:00+09:00"), "short")})`;
   }
   function renderMasthead() {
     const now = new Date();
-    const key = dayKey(now);
-    $("d-md").textContent = `${parseInt(key.slice(5, 7), 10)}月${parseInt(key.slice(8, 10), 10)}日`;
+    $("d-md").textContent = md(dayKey(now));
     $("d-wd").textContent = weekday(now, "long");
   }
 
   /* ── データ読み込み ───────────────────────── */
   function loadState() {
+    topicIdx = new Map(data.topics.map((t, i) => [t.id, i]));
     const sel = lsGet(LS_SEL);
     const ids = new Set(data.topics.map(t => t.id));
     const defaults = () => new Set(data.topics.filter(t => t.default).map(t => t.id));
@@ -284,6 +390,8 @@ body.sheet-open #sheet { transform: none; visibility: visible; }
   }
 
   const safeUrl = (u) => /^https?:\/\//i.test(u) ? u : "#";
+  const topicName = (id) => (data.topics.find(t => t.id === id) || {}).name || "";
+  const mainTopic = (a) => (filter !== "all" && a.topics.includes(filter)) ? filter : a.topics.find(id => selected.has(id));
 
   function visibleArticles() {
     return data.articles.filter(a =>
@@ -296,7 +404,9 @@ body.sheet-open #sheet { transform: none; visibility: visible; }
     box.replaceChildren();
     const mk = (id, label) => {
       const b = document.createElement("button");
-      b.className = "tab"; b.textContent = label;
+      b.className = "tab";
+      if (id === "all") paintAccent(b); else { paint(b, id); const d = document.createElement("span"); d.className = "dot"; b.appendChild(d); }
+      b.append(label);
       b.setAttribute("aria-pressed", String(filter === id));
       b.onclick = () => { filter = id; renderTabs(); renderList(); window.scrollTo(0, 0); };
       box.appendChild(b);
@@ -316,44 +426,53 @@ body.sheet-open #sheet { transform: none; visibility: visible; }
   }
 
   function renderList() {
-    const names = Object.fromEntries(data.topics.map(t => [t.id, t.name]));
     const list = $("list");
     list.replaceChildren();
-    const items = visibleArticles();
-    renderStatus(items.length);
-    if (!items.length) {
+    rowOf = new Map();
+    view = visibleArticles();
+    renderStatus(view.length);
+    if (!view.length) {
       const d = document.createElement("div"); d.className = "notice";
       const p = document.createElement("p"); p.textContent = "表示できる記事がありません。「テーマ」から表示するテーマを選んでください。";
       d.appendChild(p); list.appendChild(d); return;
     }
     // 日付ごとにまとめる
     const groups = new Map();
-    for (const a of items) {
+    view.forEach((a, i) => {
       const key = a.published ? dayKey(new Date(a.published)) : "none";
       if (!groups.has(key)) groups.set(key, []);
-      groups.get(key).push(a);
-    }
-    for (const [key, arr] of groups) {
+      groups.get(key).push(i);
+    });
+    for (const [key, idxs] of groups) {
       const sec = document.createElement("section"); sec.className = "day";
       const h = document.createElement("h2"); h.textContent = key === "none" ? "日時不明" : dayLabel(key);
       sec.appendChild(h);
-      for (const a of arr) {
+      for (const i of idxs) {
+        const a = view[i];
         const el = document.createElement("a");
         el.className = "row" + (read.has(a.link) ? " read" : "");
         el.href = safeUrl(a.link); el.target = "_blank"; el.rel = "noopener noreferrer";
+        const tag = mainTopic(a);
+        paint(el, tag);
         const tm = document.createElement("time");
         if (a.published) { tm.dateTime = a.published; tm.textContent = fmtTime.format(new Date(a.published)); }
         else tm.textContent = "--:--";
-        const rail = document.createElement("span"); // 時間軸の列(印は CSS で描く)
+        const rail = document.createElement("span");
         const body = document.createElement("div"); body.className = "body";
         const hl = document.createElement("div"); hl.className = "hl"; hl.textContent = a.title;
+        body.appendChild(hl);
+        if (a.summary) { const pv = document.createElement("div"); pv.className = "pv"; pv.textContent = a.summary; body.appendChild(pv); }
         const meta = document.createElement("div"); meta.className = "meta";
-        const tag = (filter !== "all" && a.topics.includes(filter)) ? filter : a.topics.find(id => selected.has(id));
-        if (tag) { const s = document.createElement("span"); s.className = "tp"; s.textContent = names[tag]; meta.appendChild(s); }
+        if (tag) { const s = document.createElement("span"); s.className = "pill"; s.textContent = topicName(tag); meta.appendChild(s); }
         if (a.source) { const s = document.createElement("span"); s.textContent = a.source; meta.appendChild(s); }
-        body.append(hl, meta);
+        body.appendChild(meta);
         el.append(tm, rail, body);
-        el.addEventListener("click", () => { read.add(a.link); lsSet(LS_READ, [...read]); el.classList.add("read"); });
+        el.addEventListener("click", (e) => {
+          if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return; // 新しいタブで開く操作はそのまま
+          e.preventDefault();
+          openDetail(i);
+        });
+        rowOf.set(a.link, el);
         sec.appendChild(el);
       }
       list.appendChild(sec);
@@ -367,6 +486,8 @@ body.sheet-open #sheet { transform: none; visibility: visible; }
     box.replaceChildren();
     data.topics.forEach(t => {
       const lab = document.createElement("label"); lab.className = "opt";
+      paint(lab, t.id);
+      const dot = document.createElement("span"); dot.className = "dot";
       const name = document.createElement("span"); name.textContent = t.name;
       const n = document.createElement("span"); n.className = "n"; n.textContent = (counts[t.id] || 0) + "件";
       const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = selected.has(t.id);
@@ -377,7 +498,7 @@ body.sheet-open #sheet { transform: none; visibility: visible; }
         if (filter !== "all" && !selected.has(filter)) filter = "all";
         renderTabs(); renderList();
       };
-      lab.append(name, n, cb);
+      lab.append(dot, name, n, cb);
       box.appendChild(lab);
     });
   }
@@ -390,7 +511,7 @@ body.sheet-open #sheet { transform: none; visibility: visible; }
     const d = document.createElement("div"); d.className = "notice";
     const p = document.createElement("p");
     p.textContent = "ニュースを読み込めませんでした。初回の更新が終わるまで、数分かかることがあります。";
-    const b = document.createElement("button"); b.classame = "btn"; b.textContent = "もう一度読み込む";
+    const b = document.createElement("button"); b.className = "btn"; b.textContent = "もう一度読み込む";
     b.onclick = () => load(true);
     d.append(p, b); list.appendChild(d);
   }
@@ -411,12 +532,79 @@ body.sheet-open #sheet { transform: none; visibility: visible; }
     }
   }
 
+  /* ── 記事の概要 ───────────────────────── */
+  function openDetail(i) {
+    const a = view[i];
+    if (!a) return;
+    detailAt = i;
+    const tag = mainTopic(a);
+    const det = $("detail");
+    paint(det, tag);
+
+    const pill = $("d-tag");
+    pill.textContent = tag ? topicName(tag) : "";
+    pill.style.display = tag ? "" : "none";
+    $("d-title").textContent = a.title;
+
+    const meta = $("d-meta");
+    meta.replaceChildren();
+    const add = (t) => { const s = document.createElement("span"); s.textContent = t; meta.appendChild(s); };
+    if (a.source) add(a.source);
+    if (a.published) { const d = new Date(a.published); add(`${md(dayKey(d))} ${fmtTime.format(d)}`); }
+
+    const sum = $("d-sum");
+    sum.replaceChildren();
+    const box = document.createElement("div");
+    if (a.summary) {
+      box.className = "d-sum"; box.textContent = a.summary;
+      const note = document.createElement("p"); note.className = "d-note"; note.textContent = "配信元が公開している概要を表示しています。";
+      sum.append(box, note);
+    } else {
+      box.className = "d-sum none"; box.textContent = "この記事の概要は取得できていません。「元の記事を開く」から本文を読めます。";
+      sum.append(box);
+    }
+
+    const rel = $("d-rel");
+    rel.replaceChildren();
+    if (a.related && a.related.length) {
+      const h = document.createElement("h3"); h.textContent = "同じニュースの他の報道";
+      rel.appendChild(h);
+      a.related.forEach(r => {
+        const l = document.createElement("a");
+        l.href = safeUrl(r.link); l.target = "_blank"; l.rel = "noopener noreferrer";
+        l.append(r.title);
+        if (r.source) { const s = document.createElement("span"); s.textContent = r.source; l.appendChild(s); }
+        rel.appendChild(l);
+      });
+    }
+
+    $("d-open").href = safeUrl(a.link);
+    $("d-prev").disabled = i <= 0;
+    $("d-next").disabled = i >= view.length - 1;
+    det.scrollTop = 0;
+
+    // 開いたら既読にする
+    read.add(a.link); lsSet(LS_READ, [...read]);
+    const row = rowOf.get(a.link); if (row) row.classList.add("read");
+
+    document.body.classList.remove("sheet-open");
+    document.body.classList.add("detail-open");
+  }
+  const closeDetail = () => { document.body.classList.remove("detail-open"); detailAt = -1; };
+
   /* ── 操作 ───────────────────────── */
-  const setSheet = (open) => document.body.classList.toggle("sheet-open", open);
+  const setSheet = (open) => { if (open) closeDetail(); document.body.classList.toggle("sheet-open", open); };
   $("btn-settings").onclick = () => setSheet(true);
   $("btn-close").onclick = () => setSheet(false);
-  $("sheet-back").onclick = () => setSheet(false);
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape") setSheet(false); });
+  $("sheet-back").onclick = () => { setSheet(false); closeDetail(); };
+  $("d-close").onclick = closeDetail;
+  $("d-prev").onclick = () => openDetail(detailAt - 1);
+  $("d-next").onclick = () => openDetail(detailAt + 1);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") { setSheet(false); closeDetail(); }
+    else if (detailAt >= 0 && e.key === "ArrowLeft") openDetail(detailAt - 1);
+    else if (detailAt >= 0 && e.key === "ArrowRight") openDetail(detailAt + 1);
+  });
   $("btn-reload").onclick = () => load(false);
   $("btn-mode").onclick = () => setAppearance(isDark() ? "light" : "dark");
   document.querySelectorAll("#seg button").forEach(b => b.onclick = () => setAppearance(b.dataset.m));
