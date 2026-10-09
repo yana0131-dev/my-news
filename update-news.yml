@@ -1,0 +1,46 @@
+name: Update news
+
+on:
+  schedule:
+    # 毎時 07 分に実行(UTC基準。毎時なのでJSTでも毎時07分)。
+    # 正時ちょうどは混み合って遅延しやすいので少しずらしている
+    - cron: "7 * * * *"
+  workflow_dispatch:        # Actionsタブから手動実行も可能
+  push:
+    branches: [main]        # コードやテーマを変更したら即反映
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Fetch news
+        run: python scripts/fetch_news.py site/news.json
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

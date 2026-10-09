@@ -1,0 +1,24 @@
+{
+  "_comment": "ニューステーマの一覧。ここに足したテーマがサイトの『テーマ選択』に並びます。type は google_topic(Googleニュースの定番カテゴリ) / search(キーワード検索) / feed(任意のRSS/Atom URL) の3種類。default:true のテーマは初回アクセス時に最初から選択されます。",
+  "settings": {
+    "language": "ja",
+    "country": "JP",
+    "max_items_per_topic": 20,
+    "max_age_days": 3
+  },
+  "topics": [
+    { "id": "top",        "name": "主要ニュース", "type": "google_topic", "topic": "NATION",        "default": true },
+    { "id": "world",      "name": "国際",         "type": "google_topic", "topic": "WORLD",         "default": true },
+    { "id": "business",   "name": "経済・ビジネス", "type": "google_topic", "topic": "BUSINESS",      "default": true },
+    { "id": "technology", "name": "テクノロジー", "type": "google_topic", "topic": "TECHNOLOGY",    "default": true },
+    { "id": "science",    "name": "科学",         "type": "google_topic", "topic": "SCIENCE",       "default": false },
+    { "id": "health",     "name": "健康・医療",   "type": "google_topic", "topic": "HEALTH",        "default": false },
+    { "id": "sports",     "name": "スポーツ",     "type": "google_topic", "topic": "SPORTS",        "default": false },
+    { "id": "entertain",  "name": "エンタメ",     "type": "google_topic", "topic": "ENTERTAINMENT", "default": false },
+    { "id": "toyama",     "name": "富山",         "type": "search", "query": "富山県 OR 富山市",   "default": true },
+    { "id": "ai",         "name": "生成AI",       "type": "search", "query": "生成AI OR ChatGPT OR Claude OR Gemini", "default": true },
+    { "id": "python",     "name": "Python・開発", "type": "search", "query": "Python OR GitHub OR 開発者向け", "default": false },
+    { "id": "tv",         "name": "放送・メディア", "type": "search", "query": "放送業界 OR テレビ局 OR 視聴率", "default": false },
+    { "id": "weather",    "name": "防災・気象",   "type": "search", "query": "気象庁 OR 防災 OR 大雨 OR 地震", "default": false }
+  ]
+}

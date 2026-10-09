@@ -1,0 +1,4 @@
+site/news.json
+news.json
+__pycache__/
+*.pyc
