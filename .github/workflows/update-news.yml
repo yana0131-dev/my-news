@@ -21,7 +21,7 @@ concurrency:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 25
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -32,7 +32,15 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Install tools (OCR / PDF / encryption)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends poppler-utils tesseract-ocr tesseract-ocr-jpn
+          pip install cryptography
+
       - name: Fetch news
+        env:
+          NEWS_PASSPHRASE: ${{ secrets.NEWS_PASSPHRASE }}   # 合言葉(GitHubのSecretsに登録)
         run: python scripts/fetch_news.py site/news.json
 
       - uses: actions/configure-pages@v5
