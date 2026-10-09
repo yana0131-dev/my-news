@@ -197,10 +197,14 @@ def fetch_topic(topic: dict, settings: dict) -> tuple[str, list[dict], str | Non
         # 媒体名が付いていないフィード(業界紙など)は、設定の source か、サイト名(ドメイン)で補う
         default_src = topic.get("source") or (urllib.parse.urlparse(url).hostname or "" if topic["type"] == "feed" else "")
         keywords = [k.lower() for k in topic.get("keywords", [])]
+        excludes = [k.lower() for k in topic.get("exclude", [])]
         kept = []
         for it in items:
             if not it["source"] and default_src:
                 it["source"] = default_src
+            # 芸能・番組などの話題は除く(exclude のどれかを含む記事)
+            if excludes and any(k in f"{it['title']} {it['summary']}".lower() for k in excludes):
+                continue
             # 総合的なフィードから、関心のある話題だけを残す(keywords のどれかを含む記事)
             if keywords and not any(k in f"{it['title']} {it['summary']}".lower() for k in keywords):
                 continue
