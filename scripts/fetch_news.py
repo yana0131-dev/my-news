@@ -339,11 +339,17 @@ def attach_pdf_bodies(ordered: list[dict], topics: list[dict], out_dir: Path) ->
     本文は news.json を重くしないよう issues/ 以下の別ファイルに置き、記事には body_url だけ持たせる。"""
     pdf_topics = {t["id"] for t in topics if t.get("type") == "pdf_index"}
     deadline = time.monotonic() + 600
+    new_left = int(os.environ.get("OCR_MAX_NEW", "3"))  # 1回の更新で新しく読み取る号の上限(残りは次の更新で。読み取り済みは数えない)
     for a in ordered:
         if not (pdf_topics & set(a["topics"])) or time.monotonic() > deadline:
             continue
         name = (re.sub(r"[^0-9A-Za-z_-]", "", Path(urllib.parse.urlparse(a["link"]).path).stem) or "issue") + "-" + BODY_VERSION
-        text = ("" if os.environ.get("NEWS_REREAD") == "1" else previous_body(name)) or pdf_to_text(a["link"])
+        text = "" if os.environ.get("NEWS_REREAD") == "1" else previous_body(name)
+        if not text:
+            if new_left <= 0:
+                continue
+            new_left -= 1
+            text = pdf_to_text(a["link"])
         if len(text) < 20:
             continue
         (out_dir / "issues").mkdir(parents=True, exist_ok=True)
@@ -608,6 +614,30 @@ def main() -> int:
                 articles[key] = a
             kept += 1
 
+    # accumulate:true のテーマは、フィードに載らなくなった過去の記事も、前回公開分から引き継いで max_age_days まで残す
+    previous = load_previous()
+    if (not previous and os.environ.get("GITHUB_REPOSITORY") and any(t.get("accumulate") for t in topics)
+            and os.environ.get("NEWS_ALLOW_EMPTY_PREVIOUS") != "1"):
+        # 前回分が読めないまま公開すると、ためてきた過去記事が消えてしまうので、公開を中止する
+        print("[ERROR] 前回公開したデータを読めませんでした。ためた記事を守るため、今回は公開しません", file=sys.stderr)
+        return 1
+    for tcfg in topics:
+        if not tcfg.get("accumulate"):
+            continue
+        tid = tcfg["id"]
+        if tid in errors:
+            pass  # 今回取得に失敗しても、前回分は残す
+        t_cut = (datetime.now(timezone.utc) - timedelta(days=int(tcfg.get("max_age_days", settings.get("max_age_days", 3))))).isoformat()
+        for link, pa in previous.items():
+            if link in articles or tid not in pa.get("topics", []):
+                continue
+            if not pa.get("published") or pa["published"] < t_cut:
+                continue
+            carried = dict(pa)
+            carried["topics"] = [t for t in pa["topics"] if any(c["id"] == t for c in topics)]
+            if carried["topics"]:
+                articles[link] = carried
+
     ordered = sorted(articles.values(), key=lambda a: a["published"] or "", reverse=True)
 
     # 全テーマが失敗したときは、古い news.json を空で上書きしないよう異常終了にする
@@ -616,7 +646,7 @@ def main() -> int:
         return 1
 
     if os.environ.get("NEWS_NO_ENRICH") != "1":
-        reused, got = enrich(ordered, load_previous())
+        reused, got = enrich(ordered, previous)
         print(f"summaries: reused {reused}, newly fetched {got}")
     for a in ordered:  # 概要が付いた記事には試行回数の記録は不要
         if a.get("summary"):
