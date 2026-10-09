@@ -98,7 +98,7 @@ a { color: inherit; }
 .wrap { max-width: 640px; margin: 0 auto; padding: 0 20px; }
 
 /* ── 見出し部 ───────────────────────── */
-.masthead { padding-top: env(safe-area-inset-top); }
+.masthead { position: sticky; top: 0; z-index: 10; background: var(--bg); padding-top: env(safe-area-inset-top); padding-bottom: 10px; border-bottom: 1px solid var(--line); } /* 画面上部に固定 */
 .strip {
   height: 4px;
   background: linear-gradient(90deg,
@@ -130,7 +130,7 @@ a { color: inherit; }
 .status { margin: 0; font-size: 12.5px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 0 12px; }
 
 /* ── テーマの絞り込み ───────────────────────── */
-.tabs { margin-top: 14px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+.tabs { margin-top: 0; padding-top: 14px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
 #chips { display: flex; flex-wrap: wrap; gap: 8px; } /* 横にスクロールさせず、収まらない分は次の行へ */
 .tab {
   display: inline-flex; align-items: center; cursor: pointer; white-space: nowrap;
