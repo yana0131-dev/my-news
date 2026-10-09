@@ -221,7 +221,7 @@ def parse_pdf_index(html: str, base_url: str, name: str) -> list[dict]:
 
 
 OCR_MAX_PAGES = 12
-BODY_VERSION = "v4"  # 文字起こしの方式を変えたら上げる。上げると、読み取り済みの号もすべて読み直す
+BODY_VERSION = "v5"  # 文字起こしの方式を変えたら上げる。上げると、読み取り済みの号もすべて読み直す
 
 
 def _clean_pdf_text(text: str) -> str:
@@ -265,8 +265,14 @@ def tidy_ocr(text: str) -> str:
     # 日本語(全角)の隣の空白は消す。半角英数どうしの空白(TBS GX など)は残す
     text = re.sub(r"(?<=[^\x00-\x7f])[ \t]+|[ \t]+(?=[^\x00-\x7f])", "", text)
     # 行頭の印(◎ が ③ ⑰ @ などに化ける)を ◎ にそろえ、項目の前に空行を入れる
-    text = re.sub(r"(?m)^[◎①-⑳@©®⑬⑰③Ⓞ]+[ \t]*(?=\S)", "\n◎ ", text)
-    return re.sub(r"\n{3,}", "\n\n", text).strip()
+    text = re.sub(r"(?m)^[◎①-⑳@©®⑬⑰③Ⓞ]+[ \t]*(?=\S)", "\n\n◎ ", text)
+    return space_items(text)
+
+
+def space_items(text: str) -> str:
+    """各項目(◎)の前を2行あける。文字入りPDFの場合も同じにそろえる。"""
+    text = re.sub(r"[ \t]*\n*[ \t]*◎[ \t]*", "\n\n\n◎ ", text)
+    return re.sub(r"\n{4,}", "\n\n\n", text).strip()
 
 
 def join_vertical(text: str) -> str:
@@ -299,7 +305,7 @@ def pdf_to_text(url: str) -> str:
             ocr = ocr_pdf(data)
             if len(re.sub(r"\s", "", ocr)) > len(re.sub(r"\s", "", raw)):
                 raw = ocr
-        return _clean_pdf_text(raw)
+        return space_items(_clean_pdf_text(raw))
     except Exception as e:
         print(f"[WARN] pdf {url}: {type(e).__name__}: {e}", file=sys.stderr)
         return ""
