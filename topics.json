@@ -1,5 +1,5 @@
 {
-  "_comment": "ニューステーマの一覧。ここに足したテーマがサイトの『テーマ選択』に並びます。type は google_topic(Googleニュースの定番カテゴリ) / search(キーワード検索) / feed(任意のRSS/Atom URL) の3種類。default:true のテーマは初回アクセス時に最初から選択されます。",
+  "_comment": "ニューステーマの一覧。ここに足したテーマがサイトの『テーマ選択』に並びます。type は google_topic(Googleニュースの定番カテゴリ) / search(キーワード検索) / feed(任意のRSS/Atom URL) の3種類。default:true のテーマは初回アクセス時に最初から選択されます。任意の項目: source(媒体名。feedで使う) / keywords(feedの記事をこの語を含むものだけに絞る) / max_age_days(何日前の記事まで残すか) / max_items(最大件数)。",
   "settings": {
     "language": "ja",
     "country": "JP",
@@ -8,7 +8,7 @@
   },
   "topics": [
     { "id": "top",        "name": "主要ニュース", "type": "google_topic", "topic": "NATION",        "default": true },
-    { "id": "nhk",        "name": "NHK",          "type": "feed", "url": "https://www3.nhk.or.jp/rss/news/cat0.xml", "default": true },
+    { "id": "nhk",        "name": "NHK",          "type": "feed", "url": "https://www3.nhk.or.jp/rss/news/cat0.xml", "source": "NHK", "default": true },
     { "id": "world",      "name": "国際",        "type": "google_topic", "topic": "WORLD",         "default": true },
     { "id": "business",   "name": "経済・ビジネス", "type": "google_topic", "topic": "BUSINESS",      "default": true },
     { "id": "technology", "name": "テクノロジー", "type": "google_topic", "topic": "TECHNOLOGY",    "default": true },
@@ -20,6 +20,10 @@
     { "id": "ai",         "name": "生成AI",       "type": "search", "query": "生成AI OR ChatGPT OR Claude OR Gemini", "default": true },
     { "id": "python",     "name": "Python・開発", "type": "search", "query": "Python OR GitHub OR 開発者向け", "default": false },
     { "id": "tv",         "name": "放送・メディア", "type": "search", "query": "放送業界 OR テレビ局 OR 視聴率", "default": false },
-    { "id": "weather",    "name": "防災・気象",   "type": "search", "query": "気象庁 OR 防災 OR 大雨 OR 地震", "default": false }
+    { "id": "equip",     "name": "放送設備",     "type": "search", "query": "放送設備 OR 放送機器 OR 中継車 OR 送信所 OR 副調整室 OR \"放送局 設備\" OR \"放送 IP化\" OR \"ST 2110\"", "max_age_days": 14, "default": true },
+    { "id": "trade",      "name": "業界紙",       "type": "search", "query": "(site:eizoshimbun.com OR site:dempa-digital.com OR site:nikkan.co.jp OR site:minpo.online OR site:inter-bee.com OR site:xtech.nikkei.com) (放送 OR 放送局 OR 映像 OR 中継)", "max_age_days": 14, "default": true },
+    { "id": "pronews",    "name": "PRONEWS",      "type": "feed", "url": "https://jp.pronews.com/feed", "source": "PRONEWS", "max_age_days": 7, "default": true },
+    { "id": "avwatch",    "name": "AV Watch(放送関連)", "type": "feed", "url": "https://av.watch.impress.co.jp/data/rss/1.0/avw/feed.rdf", "source": "AV Watch", "keywords": ["放送", "中継", "テレビ局", "ラジオ局", "送信", "ST 2110", "SDI", "スタジオ", "業務用"], "max_age_days": 7, "default": false },
+    { "id": "weather",   "name": "防災・気象",   "type": "search", "query": "気象庁 OR 防災 OR 大雨 OR 地震", "default": false }
   ]
 }
