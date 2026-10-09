@@ -163,7 +163,10 @@ main { padding-bottom: 72px; }
 .row .body { grid-column: 3; border-bottom: 1px solid var(--line); }
 .row:last-child .body { border-bottom: 0; }
 .hl { font-size: 17px; line-height: 26px; font-weight: 700; overflow-wrap: anywhere; line-break: strict; word-break: auto-phrase; text-wrap: pretty; }
-.row.read .hl { font-weight: 500; color: var(--faint); }
+.row.read::after { /* 既読は、塗りつぶしの点ではなく白抜きの輪にする */
+  content: ""; position: absolute; width: 10px; height: 10px; border-radius: 50%; background: var(--bg);
+  border: 2px solid var(--tc); left: calc(var(--tw) + var(--rw) / 2 - 5px); top: 22px; box-shadow: 0 0 0 4px var(--bg);
+}
 .row:active .hl { color: var(--tc); }
 @media (hover: hover) { .row:hover .hl { color: var(--tc); } }
 .pv {
@@ -171,7 +174,8 @@ main { padding-bottom: 72px; }
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
   line-break: strict; word-break: auto-phrase;
 }
-.row.read .pv { color: var(--faint); }
+.done { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 700; color: var(--muted); }
+.done svg { width: 14px; height: 14px; fill: none; stroke: var(--tc); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
 .meta { margin-top: 8px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 12.5px; color: var(--muted); }
 .pill { display: inline-block; padding: 1px 9px; border-radius: 999px; background: var(--tcs); color: var(--tc); font-weight: 700; font-size: 12px; line-height: 1.7; }
 
@@ -465,6 +469,7 @@ body.sheet-open #sheet, body.detail-open #detail { transform: none; visibility: 
         const meta = document.createElement("div"); meta.className = "meta";
         if (tag) { const s = document.createElement("span"); s.className = "pill"; s.textContent = topicName(tag); meta.appendChild(s); }
         if (a.source) { const s = document.createElement("span"); s.textContent = a.source; meta.appendChild(s); }
+        if (read.has(a.link)) meta.appendChild(doneBadge());
         body.appendChild(meta);
         el.append(tm, rail, body);
         el.addEventListener("click", (e) => {
@@ -532,6 +537,22 @@ body.sheet-open #sheet, body.detail-open #detail { transform: none; visibility: 
     }
   }
 
+  /* ── 既読 ───────────────────────── */
+  function doneBadge() {
+    const s = document.createElement("span"); s.className = "done";
+    s.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+    s.append("既読");
+    return s;
+  }
+  function markRead(a) {
+    read.add(a.link); lsSet(LS_READ, [...read]);
+    const row = rowOf.get(a.link);
+    if (!row) return;
+    row.classList.add("read");
+    const meta = row.querySelector(".meta");
+    if (meta && !meta.querySelector(".done")) meta.appendChild(doneBadge());
+  }
+
   /* ── 記事の概要 ───────────────────────── */
   function openDetail(i) {
     const a = view[i];
@@ -584,8 +605,7 @@ body.sheet-open #sheet, body.detail-open #detail { transform: none; visibility: 
     det.scrollTop = 0;
 
     // 開いたら既読にする
-    read.add(a.link); lsSet(LS_READ, [...read]);
-    const row = rowOf.get(a.link); if (row) row.classList.add("read");
+    markRead(a);
 
     document.body.classList.remove("sheet-open");
     document.body.classList.add("detail-open");
