@@ -263,6 +263,22 @@
       "type": "search",
       "query": "気象庁 OR 防災 OR 大雨 OR 地震",
       "default": false
+    },
+    {
+      "id": "outdoor",
+      "name": "アウトドア",
+      "type": "search",
+      "query": "アウトドア OR キャンプ OR 登山 OR 焚き火 OR キャンプ場",
+      "max_age_days": 7,
+      "default": true
+    },
+    {
+      "id": "shachu",
+      "name": "車中泊",
+      "type": "search",
+      "query": "車中泊 OR キャンピングカー OR 軽キャンパー OR RVパーク OR 道の駅 車中泊",
+      "max_age_days": 14,
+      "default": true
     }
   ]
 }
