@@ -238,6 +238,9 @@ body.sheet-open #sheet, body.detail-open #detail { transform: none; visibility: 
 :root[data-theme="dark"] .opt input:checked::after { background: var(--on-tc); }
 
 .seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 4px; background: var(--bg); border-radius: 12px; }
+.sheet h3.first { margin-top: 12px; }
+.sheet h3.first ~ h2 { margin-top: 26px; }
+.sheet-actions button { white-space: nowrap; font-size: 14px; padding-left: 10px; padding-right: 10px; }
 .seg.two { grid-template-columns: repeat(2, 1fr); }
 .seg button { height: 40px; border: 0; border-radius: 9px; background: transparent; color: var(--muted); font-weight: 500; cursor: pointer; }
 .seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 900; box-shadow: 0 1px 3px rgba(0, 0, 0, .18); }
@@ -309,6 +312,13 @@ body.sheet-open #sheet, body.detail-open #detail { transform: none; visibility: 
 
 <section class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="表示の設定">
   <div class="grab"></div>
+  <h3 class="first">記事をタップしたとき</h3>
+  <div class="seg two" id="seg-tap">
+    <button data-t="open">すぐ元記事を開く</button>
+    <button data-t="sum">概要を見る</button>
+  </div>
+  <p class="hint">放送ジャーナルなど、本文を文字起こしした記事は、この設定にかかわらず、アプリ内で本文を表示します。</p>
+
   <h2>表示するテーマ</h2>
   <p class="hint">オンにしたテーマだけが、この端末に表示されます。</p>
   <div id="opts"></div>
@@ -319,13 +329,6 @@ body.sheet-open #sheet, body.detail-open #detail { transform: none; visibility: 
     <button data-m="light">ライト</button>
     <button data-m="dark">ダーク</button>
   </div>
-
-  <h3>記事をタップしたとき</h3>
-  <div class="seg two" id="seg-tap">
-    <button data-t="open">すぐ元記事を開く</button>
-    <button data-t="sum">概要を見る</button>
-  </div>
-  <p class="hint">放送ジャーナルなど、本文を文字起こしした記事は、この設定にかかわらず、アプリ内で本文を表示します。</p>
 
   <div class="sheet-actions">
     <button id="btn-reset">初期設定に戻す</button>
