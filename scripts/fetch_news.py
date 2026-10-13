@@ -161,7 +161,7 @@ def parse_feed(data: bytes) -> list[dict]:
         if kind == "item":  # RSS 2.0 と RSS 1.0(日本の媒体に多い)
             title = clean_text(_child_text(el, "title"))
             link = _child_text(el, "link").strip()
-            src_el = _child(el, "source")
+            src_el = _child(el, "source", "Source")
             source = clean_text(src_el.text) if src_el is not None else ""
             # Googleニュースの題名は「見出し - 媒体名」形式。媒体名を分離する
             if source and title.endswith(f" - {source}"):
@@ -359,6 +359,27 @@ def attach_pdf_bodies(ordered: list[dict], topics: list[dict], out_dir: Path) ->
         a["summary"] = trim(head)
 
 
+def _title_key(title: str) -> str:
+    """見出しの照合用キー。記号・空白・末尾の省略(…)を無視して先頭18文字で比べる。"""
+    return re.sub(r"[\W_]+", "", title.lower())[:18]
+
+
+def bing_items(topic: dict, settings: dict) -> list[dict]:
+    """同じ検索語の Bing ニュース RSS を読む。Googleニュースと違い、各記事に概要(説明文)と配信元の本当のURLが付く。"""
+    q = urllib.parse.quote(topic["query"])
+    url = f"https://www.bing.com/news/search?q={q}&format=rss&setmkt={settings.get('language', 'ja')}-{settings.get('country', 'JP')}"
+    items = parse_feed(http_get(url))
+    for it in items:
+        # BingのリンクはBing経由の転送URL。url= に入っている本来の記事URLを取り出す
+        p = urllib.parse.urlparse(it["link"])
+        if (p.hostname or "").endswith("bing.com"):
+            real = urllib.parse.parse_qs(p.query).get("url", [""])[0]
+            if real.startswith("http"):
+                it["link"] = real
+        it["title"] = re.sub(r"\s*(\.\.\.|…)\s*$", "", it["title"])
+    return items
+
+
 def fetch_topic(topic: dict, settings: dict) -> tuple[str, list[dict], str | None]:
     try:
         url = build_url(topic, settings)
@@ -366,6 +387,23 @@ def fetch_topic(topic: dict, settings: dict) -> tuple[str, list[dict], str | Non
             items = parse_pdf_index(http_get(url).decode("utf-8", "replace"), url, topic.get("source") or topic["name"])
         else:
             items = parse_feed(http_get(url))
+        if topic["type"] == "search" and topic.get("bing", True):
+            # Googleニュースには概要が無いので、Bingニュースの説明文を、見出しが一致する記事に付ける。
+            # Googleに無いBingだけの記事も、追加で拾う。Bingが失敗しても、このテーマ自体は失敗にしない
+            try:
+                by_key = {_title_key(b["title"]): b for b in bing_items(topic, settings)}
+                seen = set()
+                for it in items:
+                    k = _title_key(it["title"])
+                    seen.add(k)
+                    b = by_key.get(k)
+                    if b and not it["summary"] and b["summary"]:
+                        it["summary"] = b["summary"]
+                for k, b in by_key.items():
+                    if k not in seen:
+                        items.append(b)
+            except Exception as e:
+                print(f"[INFO] bing {topic['id']}: {type(e).__name__}: {e}", file=sys.stderr)
         # 媒体名が付いていないフィード(業界紙など)は、設定の source か、サイト名(ドメイン)で補う
         default_src = topic.get("source") or (urllib.parse.urlparse(url).hostname or "" if topic["type"] == "feed" else "")
         keywords = [k.lower() for k in topic.get("keywords", [])]
