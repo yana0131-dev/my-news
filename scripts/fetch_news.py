@@ -533,23 +533,41 @@ def encrypt_outputs(payload: dict, out_path: Path, passphrase: str) -> None:
     out_path.unlink(missing_ok=True)  # 平文の news.json は公開しない
 
 
+PREVIOUS_ERROR = False  # 前回データが「無い」のではなく「読めなかった」とき True
+
+
 def load_previous() -> dict[str, dict]:
-    """前回公開した news.json を読み、概要を使い回す(GitHub Actions 上でだけ動く)。"""
+    """前回公開したデータを読み、概要や、ためた記事を引き継ぐ(GitHub Actions 上でだけ動く)。
+    合言葉ありなら news.enc を、無ければ(暗号化への切り替え直後など)平文の news.json を探す。"""
+    global PREVIOUS_ERROR
+    PREVIOUS_ERROR = False
     url = os.environ.get("PREVIOUS_NEWS_URL", "")
     repo = os.environ.get("GITHUB_REPOSITORY", "")
-    if not url and "/" in repo:
+    pw = os.environ.get("NEWS_PASSPHRASE")
+    if url:
+        urls = [url]
+    elif "/" in repo:
         owner, name = repo.split("/", 1)
-        url = f"https://{owner.lower()}.github.io/{name}/" + ("news.enc" if os.environ.get("NEWS_PASSPHRASE") else "news.json")
-    if not url:
+        base = f"https://{owner.lower()}.github.io/{name}/"
+        urls = [base + "news.enc", base + "news.json"] if pw else [base + "news.json"]
+    else:
         return {}
-    try:
-        raw = http_open(f"{url}?t={int(time.time())}")[1]
-        pw = os.environ.get("NEWS_PASSPHRASE")
-        data = json.loads(decrypt_blob(raw, pw) if pw and url.endswith(".enc") else raw)
-        return {a["link"]: a for a in data.get("articles", []) if a.get("link")}
-    except Exception as e:
-        print(f"[INFO] 前回の news.json は読めませんでした: {type(e).__name__}", file=sys.stderr)
-        return {}
+    for u in urls:
+        try:
+            raw = http_open(f"{u}?t={int(time.time())}")[1]
+            data = json.loads(decrypt_blob(raw, pw) if pw and u.endswith(".enc") else raw)
+            return {a["link"]: a for a in data.get("articles", []) if a.get("link")}
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                continue  # まだ無いだけ。次の候補を試す
+            PREVIOUS_ERROR = True
+            print(f"[INFO] 前回のデータは読めませんでした: HTTP {e.code}", file=sys.stderr)
+            return {}
+        except Exception as e:
+            PREVIOUS_ERROR = True
+            print(f"[INFO] 前回のデータは読めませんでした: {type(e).__name__}", file=sys.stderr)
+            return {}
+    return {}  # どれも無い(初回)
 
 
 def enrich(articles: list[dict], previous: dict[str, dict]) -> tuple[int, int]:
@@ -654,7 +672,7 @@ def main() -> int:
 
     # accumulate:true のテーマは、フィードに載らなくなった過去の記事も、前回公開分から引き継いで max_age_days まで残す
     previous = load_previous()
-    if (not previous and os.environ.get("GITHUB_REPOSITORY") and any(t.get("accumulate") for t in topics)
+    if (PREVIOUS_ERROR and any(t.get("accumulate") for t in topics)
             and os.environ.get("NEWS_ALLOW_EMPTY_PREVIOUS") != "1"):
         # 前回分が読めないまま公開すると、ためてきた過去記事が消えてしまうので、公開を中止する
         print("[ERROR] 前回公開したデータを読めませんでした。ためた記事を守るため、今回は公開しません", file=sys.stderr)
