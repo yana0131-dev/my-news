@@ -238,6 +238,7 @@ body.sheet-open #sheet, body.detail-open #detail { transform: none; visibility: 
 :root[data-theme="dark"] .opt input:checked::after { background: var(--on-tc); }
 
 .seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 4px; background: var(--bg); border-radius: 12px; }
+.seg.two { grid-template-columns: repeat(2, 1fr); }
 .seg button { height: 40px; border: 0; border-radius: 9px; background: transparent; color: var(--muted); font-weight: 500; cursor: pointer; }
 .seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 900; box-shadow: 0 1px 3px rgba(0, 0, 0, .18); }
 :root[data-theme="dark"] .seg button[aria-pressed="true"] { background: var(--accent-soft); box-shadow: none; }
@@ -319,6 +320,13 @@ body.sheet-open #sheet, body.detail-open #detail { transform: none; visibility: 
     <button data-m="dark">ダーク</button>
   </div>
 
+  <h3>記事をタップしたとき</h3>
+  <div class="seg two" id="seg-tap">
+    <button data-t="open">すぐ元記事を開く</button>
+    <button data-t="sum">概要を見る</button>
+  </div>
+  <p class="hint">放送ジャーナルなど、本文を文字起こしした記事は、この設定にかかわらず、アプリ内で本文を表示します。</p>
+
   <div class="sheet-actions">
     <button id="btn-reset">初期設定に戻す</button>
     <button id="btn-forget" hidden>合言葉を消す</button>
@@ -350,6 +358,14 @@ body.sheet-open #sheet, body.detail-open #detail { transform: none; visibility: 
   const LS_SEL = "mynews.selectedTopics";
   const LS_READ = "mynews.read";
   const LS_APP = "mynews.appearance";
+  const LS_TAP = "mynews.tap";  // "open"=すぐ元記事 / "sum"=概要
+  let tapMode = lsRaw0(LS_TAP) === "sum" ? "sum" : "open";
+  function lsRaw0(k) { try { return localStorage.getItem(k); } catch { return null; } }
+  function setTap(m) {
+    tapMode = m === "sum" ? "sum" : "open";
+    try { localStorage.setItem(LS_TAP, tapMode); } catch {}
+    document.querySelectorAll("#seg-tap button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.t === tapMode)));
+  }
   const TZ = "Asia/Tokyo";
   const $ = (id) => document.getElementById(id);
   let data = null;
@@ -521,6 +537,7 @@ body.sheet-open #sheet, body.detail-open #detail { transform: none; visibility: 
         el.append(tm, rail, body);
         el.addEventListener("click", (e) => {
           if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return; // 新しいタブで開く操作はそのまま
+          if (tapMode === "open" && !a.body_url) { markRead(a); return; }  // そのまま元記事のリンクを開く
           e.preventDefault();
           openDetail(i);
         });
@@ -777,6 +794,8 @@ body.sheet-open #sheet, body.detail-open #detail { transform: none; visibility: 
   $("btn-forget").onclick = () => { try { localStorage.removeItem(LS_PASS); } catch {} passMem = null; crypt = null; location.reload(); };
   $("btn-mode").onclick = () => setAppearance(isDark() ? "light" : "dark");
   document.querySelectorAll("#seg button").forEach(b => b.onclick = () => setAppearance(b.dataset.m));
+  document.querySelectorAll("#seg-tap button").forEach(b => b.onclick = () => setTap(b.dataset.t));
+  setTap(tapMode);
   $("btn-reset").onclick = () => {
     try { localStorage.removeItem(LS_SEL); } catch {}
     if (data) { loadState(); filter = "all"; renderAll(); }
