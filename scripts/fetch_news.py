@@ -55,7 +55,7 @@ def build_url(topic: dict, settings: dict) -> str:
     if kind == "search":
         q = urllib.parse.quote(topic["query"])
         return f"https://news.google.com/rss/search?q={q}&{tail}"
-    if kind in ("feed", "pdf_index"):
+    if kind in ("feed", "pdf_index", "html_links"):
         return topic["url"]
     raise ValueError(f"unknown topic type: {kind}")
 
@@ -218,6 +218,152 @@ def parse_pdf_index(html: str, base_url: str, name: str) -> list[dict]:
             "related": [],
         })
     return items
+
+
+_DATE_IN_TEXT = re.compile(r"(?:(20\d{2})\s*年\s*)?(\d{1,2})\s*月\s*(\d{1,2})\s*日")
+
+
+def decode_html(body: bytes) -> str:
+    m = re.search(rb'charset=["\']?([\w-]+)', body[:5000], re.I)
+    enc = m.group(1).decode("ascii", "ignore") if m else "utf-8"
+    try:
+        return body.decode(enc, errors="replace")
+    except LookupError:
+        return body.decode("utf-8", errors="replace")
+
+
+def parse_html_links(html: str, base_url: str, topic: dict) -> list[dict]:
+    """RSSの無い一覧ページ(観光イベント一覧など)から、link_pattern に合うリンクを記事として拾う。
+
+    リンクの中の文字のうち、最初の日付(〇月〇日)より前を見出し、それ以降を概要にする。
+    公開日時は分からないので、初めて見つけた時刻を使う(main で前回分から引き継ぐ)。"""
+    pat = re.compile(topic.get("link_pattern", r".+"))
+    name = topic.get("source") or (urllib.parse.urlparse(base_url).hostname or "")
+    now = datetime.now(timezone.utc)
+    items, seen = [], set()
+    for m in re.finditer(r'<a\b[^>]*?href=["\']([^"\']+)["\'][^>]*>(.*?)</a>', html, re.S | re.I):
+        link = urllib.parse.urljoin(base_url, unescape(m.group(1)))
+        if not pat.search(link) or link in seen:
+            continue
+        # 画像の alt もイベント名の手がかりにする
+        inner = re.sub(r'<img\b[^>]*alt=["\']([^"\']*)["\'][^>]*>', r" \1 ", m.group(2), flags=re.I)
+        text = clean_text(inner)
+        if len(text) < 4:
+            continue
+        seen.add(link)
+        d = _DATE_IN_TEXT.search(text)
+        title, rest = (text[: d.start()].strip(" ・|:：-"), text[d.start():]) if d and d.start() >= 4 else (text, "")
+        if len(title) > 80:
+            title, rest = trim(title, 80), text
+        items.append({
+            "title": title, "link": link, "source": name, "published": now,
+            "summary": trim(rest) if rest else "", "related": [], "first_seen": True,
+        })
+    return items
+
+
+def find_event_dates(text: str, ref: datetime) -> tuple[str, str] | None:
+    """文中の「〇月〇日」から、これから先の開催日を探す。(開始日, 終了日) を YYYY-MM-DD で返す。
+
+    年が書かれていなければ、基準日(記事の日付)に近い年とみなす。今日より前に終わる日付は対象外。"""
+    jst = timezone(timedelta(hours=9))
+    ref_j = ref.astimezone(jst).date()
+    today = datetime.now(jst).date()
+    found = []
+    for m in _DATE_IN_TEXT.finditer(text):
+        y, mo, da = m.group(1), int(m.group(2)), int(m.group(3))
+        try:
+            if y:
+                dt = datetime(int(y), mo, da).date()
+            else:
+                dt = datetime(ref_j.year, mo, da).date()
+                if (ref_j - dt).days > 90:     # 12月の記事に「1月10日」→ 翌年
+                    dt = datetime(ref_j.year + 1, mo, da).date()
+        except ValueError:
+            continue
+        found.append((m.start(), m.end(), dt))
+    if not found:
+        return None
+    for i, (s, e, dt) in enumerate(found):
+        end = dt
+        if i + 1 < len(found) and re.fullmatch(r"\s*(?:[(（][^)）]{0,6}[)）])?\s*[～〜~\-－―ー]\s*", text[e:found[i + 1][0]]):
+            end = max(dt, found[i + 1][2])
+        if end >= today and (dt - today).days <= 365:
+            return dt.isoformat(), end.isoformat()
+    return None
+
+
+# ── Gemini で「番組ネタとしての価値」を判定する(GEMINI_API_KEY があるときだけ) ──
+
+GEMINI_MAX_PER_RUN = 60
+GEMINI_PROMPT = """あなたは富山県のテレビ局の番組ディレクターです。次の富山県内の情報が、テレビのニュースや情報番組のネタになるかを判定してください。
+各項目について、次のキーを持つJSONオブジェクトの配列だけを返してください。
+- i: 項目の番号(入力のまま)
+- score: ネタ度 1〜5 (5=すぐ取材したい / 4=取材候補 / 3=情報番組の紹介向き / 2=小ネタ / 1=ネタにならない・県外の話題)
+- genre: 次のどれか1つ「事件・事故」「行政・政治」「経済・企業」「新店・新商品」「イベント」「観光・自然」「グルメ」「文化・教育」「スポーツ」「暮らし・その他」
+- pitch: 取材や企画にするならどう切り取るか、40字以内の日本語
+- event_date: 催し・発売・開業などの日が書かれていればその開始日(YYYY-MM-DD)、無ければ null
+- place: 主な場所(市町村名や施設名)。分からなければ ""
+今日は {today} です。
+
+{items}"""
+
+
+def gemini_rate(articles: list[dict], previous: dict[str, dict], group_topics: set[str]) -> int:
+    """富山ネタ帳の記事に ai = {score, genre, pitch, place} を付ける。前回判定済みの記事は使い回す。"""
+    key = os.environ.get("GEMINI_API_KEY", "").strip()
+    targets = []
+    for a in articles:
+        if not group_topics & set(a["topics"]):
+            continue
+        prev = previous.get(a["link"]) or {}
+        if prev.get("ai"):
+            a["ai"] = prev["ai"]
+            if prev.get("event_date") and not a.get("event_date"):
+                a["event_date"], a["event_end"] = prev["event_date"], prev.get("event_end", prev["event_date"])
+        elif key and len(targets) < GEMINI_MAX_PER_RUN:
+            targets.append(a)
+    if not targets:
+        return 0
+    model = os.environ.get("GEMINI_MODEL", "gemini-flash-latest")
+    jst = timezone(timedelta(hours=9))
+    lines = "\n".join(
+        f"[{i}] {a['title']}" + (f" / {a.get('source')}" if a.get("source") else "") + (f" / {a['summary'][:150]}" if a.get("summary") else "")
+        for i, a in enumerate(targets))
+    body = {
+        "contents": [{"parts": [{"text": GEMINI_PROMPT.format(today=datetime.now(jst).date().isoformat(), items=lines)}]}],
+        "generationConfig": {"responseMimeType": "application/json", "temperature": 0.2},
+    }
+    try:
+        _, res = http_open(
+            f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+            data=json.dumps(body).encode("utf-8"),
+            headers={"Content-Type": "application/json", "x-goog-api-key": key},
+        )
+        out = json.loads(res)
+        text = "".join(p.get("text", "") for p in out["candidates"][0]["content"]["parts"])
+        rows = json.loads(text)
+    except Exception as e:
+        print(f"[WARN] gemini: {type(e).__name__}: {str(e)[:200]}", file=sys.stderr)
+        return 0
+    today = datetime.now(jst).date().isoformat()
+    n = 0
+    for r in rows if isinstance(rows, list) else []:
+        try:
+            a = targets[int(r["i"])]
+        except (KeyError, ValueError, IndexError, TypeError):
+            continue
+        a["ai"] = {
+            "score": max(1, min(5, int(r.get("score") or 1))),
+            "genre": str(r.get("genre") or "")[:12],
+            "pitch": str(r.get("pitch") or "")[:60],
+            "place": str(r.get("place") or "")[:30],
+        }
+        ed = str(r.get("event_date") or "")
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", ed) and ed >= today and not a.get("event_date"):
+            a["event_date"] = a["event_end"] = ed
+        n += 1
+    return n
 
 
 OCR_MAX_PAGES = 12
@@ -385,6 +531,8 @@ def fetch_topic(topic: dict, settings: dict) -> tuple[str, list[dict], str | Non
         url = build_url(topic, settings)
         if topic["type"] == "pdf_index":
             items = parse_pdf_index(http_get(url).decode("utf-8", "replace"), url, topic.get("source") or topic["name"])
+        elif topic["type"] == "html_links":
+            items = parse_html_links(decode_html(http_get(url)), url, topic)
         else:
             items = parse_feed(http_get(url))
         if topic["type"] == "search" and topic.get("bing", True):
@@ -627,6 +775,9 @@ def main() -> int:
     with ThreadPoolExecutor(max_workers=6) as ex:
         results = list(ex.map(lambda t: fetch_topic(t, settings), topics))
 
+    # 前回公開分(概要・AI判定・初めて見つけた時刻の引き継ぎに使う)
+    previous = load_previous()
+
     articles: dict[str, dict] = {}  # link -> 記事(複数テーマにまたがる記事は topics に追記)
     errors: dict[str, str] = {}
     for topic_id, items, err in results:
@@ -644,6 +795,14 @@ def main() -> int:
                 break
             if not it["title"] or not it["link"]:
                 continue
+            if it.get("first_seen"):
+                # 一覧ページ由来で日時が無い記事は、前回分に記録した「初めて見つけた時刻」を使い続ける
+                pp = (previous.get(it["link"]) or {}).get("published")
+                if pp:
+                    try:
+                        it["published"] = datetime.fromisoformat(pp)
+                    except ValueError:
+                        pass
             if it["published"] and it["published"] < t_cutoff:
                 continue
             key = it["link"]
@@ -671,7 +830,6 @@ def main() -> int:
             kept += 1
 
     # accumulate:true のテーマは、フィードに載らなくなった過去の記事も、前回公開分から引き継いで max_age_days まで残す
-    previous = load_previous()
     if (PREVIOUS_ERROR and any(t.get("accumulate") for t in topics)
             and os.environ.get("NEWS_ALLOW_EMPTY_PREVIOUS") != "1"):
         # 前回分が読めないまま公開すると、ためてきた過去記事が消えてしまうので、公開を中止する
@@ -712,10 +870,29 @@ def main() -> int:
 
     attach_pdf_bodies(ordered, topics, out_path.parent)
 
+    # 富山ネタ帳など、開催日を拾うグループ(settings.groups の event_dates:true)
+    groups = settings.get("groups") or []
+    dated_groups = {g["id"] for g in groups if g.get("event_dates")}
+    dated_topics = {t["id"] for t in topics if t.get("group", "main") in dated_groups}
+    for a in ordered:
+        if not dated_topics & set(a["topics"]):
+            continue
+        ref = datetime.fromisoformat(a["published"]) if a.get("published") else datetime.now(timezone.utc)
+        ev = find_event_dates(f"{a['title']} {a.get('summary', '')}", ref)
+        if ev:
+            a["event_date"], a["event_end"] = ev
+        else:
+            a.pop("event_date", None); a.pop("event_end", None)
+    rated = gemini_rate(ordered, previous, dated_topics)
+    if rated:
+        print(f"gemini: rated {rated} articles")
+
     payload = {
         "updated": datetime.now(timezone.utc).isoformat(),
+        "groups": [{"id": g["id"], "name": g["name"]} for g in groups],
+        "sns": settings.get("sns_searches", []),
         "topics": [
-            {"id": t["id"], "name": t["name"], "default": bool(t.get("default", False))}
+            {"id": t["id"], "name": t["name"], "default": bool(t.get("default", False)), "group": t.get("group", "main")}
             for t in topics
         ],
         "errors": errors,

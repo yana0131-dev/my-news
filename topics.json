@@ -1,10 +1,63 @@
 {
-  "_comment": "ニューステーマの一覧。ここに足したテーマがサイトの『テーマ選択』に並びます。type は google_topic(Googleニュースの定番カテゴリ) / search(キーワード検索) / feed(任意のRSS/Atom URL) / pdf_index(PDFへのリンクが並ぶ一覧ページ。放送ジャーナル用) の4種類。default:true のテーマは初回アクセス時に最初から選択されます。任意の項目: source(媒体名。feedで使う) / keywords(feedの記事をこの語を含むものだけに絞る) / max_age_days(何日前の記事まで残すか) / max_items(最大件数) / accumulate(true にすると、フィードから消えた過去の記事も max_age_days まで前回分から引き継いでためる) / exclude(この語を含む記事を除く。芸能ニュース除外などに使う)。",
+  "_comment": "ニューステーマの一覧。ここに足したテーマがサイトの『テーマ選択』に並びます。type は google_topic(Googleニュースの定番カテゴリ) / search(キーワード検索) / feed(任意のRSS/Atom URL) / pdf_index(PDFへのリンクが並ぶ一覧ページ。放送ジャーナル用) の4種類。default:true のテーマは初回アクセス時に最初から選択されます。任意の項目: source(媒体名。feedで使う) / keywords(feedの記事をこの語を含むものだけに絞る) / max_age_days(何日前の記事まで残すか) / max_items(最大件数) / accumulate(true にすると、フィードから消えた過去の記事も max_age_days まで前回分から引き継いでためる) / exclude(この語を含む記事を除く。芸能ニュース除外などに使う)。 group(どのグループに表示するか。settings.groups の id。省略時は main) / html_links 型(RSSの無い一覧ページから link_pattern に合うリンクを拾う)。",
   "settings": {
     "language": "ja",
     "country": "JP",
     "max_items_per_topic": 20,
-    "max_age_days": 3
+    "max_age_days": 3,
+    "groups": [
+      {
+        "id": "main",
+        "name": "My News"
+      },
+      {
+        "id": "toyama",
+        "name": "富山ネタ帳",
+        "event_dates": true
+      }
+    ],
+    "sns_searches": [
+      {
+        "name": "X 富山 新店・オープン",
+        "url": "https://x.com/search?q=%E5%AF%8C%E5%B1%B1%20%28%E3%82%AA%E3%83%BC%E3%83%97%E3%83%B3%20OR%20%E6%96%B0%E5%BA%97%20OR%20%E9%96%8B%E5%BA%97%29%20-is%3Aretweet&f=live"
+      },
+      {
+        "name": "X 富山 イベント・告知",
+        "url": "https://x.com/search?q=%E5%AF%8C%E5%B1%B1%20%28%E9%96%8B%E5%82%AC%20OR%20%E3%82%A4%E3%83%99%E3%83%B3%E3%83%88%20OR%20%E5%91%8A%E7%9F%A5%29%20-is%3Aretweet&f=live"
+      },
+      {
+        "name": "X 富山で反響の大きい投稿",
+        "url": "https://x.com/search?q=%E5%AF%8C%E5%B1%B1%20min_faves%3A300&f=live"
+      },
+      {
+        "name": "X #富山",
+        "url": "https://x.com/search?q=%23%E5%AF%8C%E5%B1%B1&f=live"
+      },
+      {
+        "name": "Instagram #富山グルメ",
+        "url": "https://www.instagram.com/explore/tags/%E5%AF%8C%E5%B1%B1%E3%82%B0%E3%83%AB%E3%83%A1/"
+      },
+      {
+        "name": "Instagram #富山新店",
+        "url": "https://www.instagram.com/explore/tags/%E5%AF%8C%E5%B1%B1%E6%96%B0%E5%BA%97/"
+      },
+      {
+        "name": "Instagram #富山イベント",
+        "url": "https://www.instagram.com/explore/tags/%E5%AF%8C%E5%B1%B1%E3%82%A4%E3%83%99%E3%83%B3%E3%83%88/"
+      },
+      {
+        "name": "TikTok 富山",
+        "url": "https://www.tiktok.com/search?q=%E5%AF%8C%E5%B1%B1"
+      },
+      {
+        "name": "YouTube 富山(新しい順)",
+        "url": "https://www.youtube.com/results?search_query=%E5%AF%8C%E5%B1%B1&sp=CAI%253D"
+      },
+      {
+        "name": "Google 富山 新店(1週間)",
+        "url": "https://www.google.com/search?q=%E5%AF%8C%E5%B1%B1%20%E6%96%B0%E5%BA%97%20%E3%82%AA%E3%83%BC%E3%83%97%E3%83%B3&tbs=qdr:w"
+      }
+    ]
   },
   "topics": [
     {
@@ -279,6 +332,107 @@
       "query": "車中泊 OR キャンピングカー OR 軽キャンパー OR RVパーク OR 道の駅 車中泊",
       "max_age_days": 14,
       "default": true
+    },
+    {
+      "id": "t_news",
+      "name": "県内ニュース",
+      "type": "search",
+      "query": "富山県 OR 富山市 OR 高岡市 OR 射水市 OR 魚津市 OR 氷見市 OR 滑川市 OR 黒部市 OR 砺波市 OR 小矢部市 OR 南砺市 OR 舟橋村 OR 上市町 OR 立山町 OR 入善町 OR 朝日町",
+      "max_items": 40,
+      "default": true,
+      "group": "toyama"
+    },
+    {
+      "id": "t_media",
+      "name": "地元メディア",
+      "type": "search",
+      "query": "site:webun.jp OR site:knb.ne.jp OR site:tulip-tv.co.jp OR site:bbt.co.jp OR \"NHK富山\"",
+      "max_items": 40,
+      "default": true,
+      "group": "toyama"
+    },
+    {
+      "id": "t_ahead",
+      "name": "予定・先取り",
+      "type": "search",
+      "query": "富山 (開催へ OR 開催予定 OR オープン予定 OR 開業へ OR 来月 OR 初開催 OR 発売へ)",
+      "max_age_days": 14,
+      "default": true,
+      "group": "toyama"
+    },
+    {
+      "id": "t_shop",
+      "name": "新店・新商品",
+      "type": "search",
+      "query": "富山 (新店 OR 開店 OR オープン OR 新商品 OR 新メニュー OR 発売)",
+      "max_age_days": 7,
+      "default": true,
+      "group": "toyama"
+    },
+    {
+      "id": "t_press",
+      "name": "プレスリリース",
+      "type": "search",
+      "query": "富山 (site:prtimes.jp OR site:atpress.ne.jp OR site:value-press.com)",
+      "max_age_days": 14,
+      "max_items": 40,
+      "default": true,
+      "group": "toyama"
+    },
+    {
+      "id": "t_sns",
+      "name": "SNSで話題",
+      "type": "search",
+      "query": "富山 (SNSで話題 OR バズ OR 反響 OR インスタ OR TikTok OR 行列)",
+      "max_age_days": 7,
+      "default": true,
+      "group": "toyama"
+    },
+    {
+      "id": "t_pref",
+      "name": "富山県 報道発表",
+      "type": "feed",
+      "url": "https://www.pref.toyama.jp/kensei/kouhou/houdou/press.xml",
+      "source": "富山県",
+      "max_age_days": 14,
+      "max_items": 40,
+      "default": true,
+      "group": "toyama"
+    },
+    {
+      "id": "t_prefnew",
+      "name": "富山県 新着",
+      "type": "feed",
+      "url": "https://www.pref.toyama.jp/shinchaku/shinchaku.xml",
+      "source": "富山県",
+      "max_age_days": 7,
+      "max_items": 40,
+      "default": false,
+      "group": "toyama"
+    },
+    {
+      "id": "t_city",
+      "name": "富山市 新着",
+      "type": "feed",
+      "url": "https://www.city.toyama.lg.jp/news.rss",
+      "source": "富山市",
+      "max_age_days": 7,
+      "max_items": 40,
+      "default": true,
+      "group": "toyama"
+    },
+    {
+      "id": "t_events",
+      "name": "観光イベント",
+      "type": "html_links",
+      "url": "https://www.info-toyama.com/events",
+      "link_pattern": "/events/\\d+/?$",
+      "source": "とやま観光ナビ",
+      "max_age_days": 120,
+      "max_items": 60,
+      "bing": false,
+      "default": true,
+      "group": "toyama"
     }
   ]
 }
