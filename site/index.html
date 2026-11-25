@@ -267,6 +267,30 @@ body.sheet-open #sheet, body.detail-open #detail { transform: none; visibility: 
 .d-rel h3 { margin: 0 0 4px; font-size: 14px; }
 .d-rel a { display: block; padding: 11px 0; border-top: 1px solid var(--line); text-decoration: none; font-size: 15px; font-weight: 500; line-height: 1.55; }
 .d-rel a span { display: block; margin-top: 2px; font-size: 12.5px; color: var(--muted); font-weight: 400; }
+
+/* ── グループ切り替え(My News / 富山ネタ帳) ───────────────────────── */
+.groups { margin-top: 10px; }
+.groups[hidden] { display: none; }
+.tab.pseudo { border-style: dashed; }
+.tab.pseudo[aria-pressed="true"] { border-style: solid; }
+.tab .cnt { margin-left: 6px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+/* ネタ帳の印 */
+.ev { display: inline-flex; align-items: center; gap: 4px; padding: 1px 9px; border-radius: 999px; font-size: 12px; font-weight: 900; line-height: 1.7; background: var(--c3s); color: var(--c3); }
+.ev.now { background: var(--c0s); color: var(--c0); }
+.score { display: inline-block; padding: 1px 8px; border-radius: 6px; font-size: 12px; font-weight: 900; line-height: 1.7; border: 1.5px solid var(--line); color: var(--muted); }
+.score.s4, .score.s5 { border-color: var(--c0); color: var(--c0); }
+.score.s5 { background: var(--c0); color: #fff; }
+.pitch { margin-top: 6px; font-size: 14px; line-height: 1.6; color: var(--ink); padding-left: 10px; border-left: 3px solid var(--tc); }
+.star { display: inline-grid; place-items: center; width: 34px; height: 32px; border: 1.5px solid var(--line); border-radius: 999px; background: transparent; color: var(--muted); cursor: pointer; }
+.star svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linejoin: round; }
+.star[aria-pressed="true"] { border-color: var(--c3); color: var(--c3); background: var(--c3s); }
+.star[aria-pressed="true"] svg { fill: currentColor; }
+.d-ai { margin: 14px 0 0; padding: 12px 14px; border-radius: 14px; border: 1.5px solid var(--line); font-size: 14.5px; line-height: 1.8; }
+.d-ai b { font-weight: 900; }
+/* SNS検索 */
+.sns-intro { margin: 22px 0 6px; font-size: 13.5px; color: var(--muted); line-height: 1.7; }
+.sns a { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 15px 2px; border-bottom: 1px solid var(--line); text-decoration: none; font-weight: 700; }
+.sns a::after { content: "開く ↗"; flex: none; font-size: 13px; color: var(--accent); font-weight: 900; }
 </style>
 </head>
 <body>
@@ -297,6 +321,7 @@ body.sheet-open #sheet, body.detail-open #detail { transform: none; visibility: 
       </button>
       <button class="btn" id="btn-settings">テーマ</button>
     </div>
+    <div class="seg groups" id="groups" hidden role="group" aria-label="表示するグループ"></div>
     <div class="dateline">
       <h1 class="date"><span id="d-md"></span><span class="wd" id="d-wd"></span></h1>
       <p class="status" id="status"></p>
@@ -362,6 +387,12 @@ body.sheet-open #sheet, body.detail-open #detail { transform: none; visibility: 
   const LS_READ = "mynews.read";
   const LS_APP = "mynews.appearance";
   const LS_TAP = "mynews.tap";  // "open"=すぐ元記事 / "sum"=概要
+  const LS_GROUP = "mynews.group";    // 表示中のグループ(main / toyama など)
+  const LS_KNOWN = "mynews.knownTopics";  // 一度見たテーマ。新しく増えたテーマの初期選択に使う
+  const LS_SAVED = "mynews.saved";    // ネタとして保存した記事(記事が一覧から消えても残す)
+  const PSEUDO = { ahead: "先取り", hot: "注目ネタ", saved: "保存したネタ", sns: "SNS検索" };
+  let group = lsRaw0(LS_GROUP) || "main";
+  let saved = [];
   let tapMode = lsRaw0(LS_TAP) === "sum" ? "sum" : "open";
   function lsRaw0(k) { try { return localStorage.getItem(k); } catch { return null; } }
   function setTap(m) {
@@ -437,13 +468,30 @@ body.sheet-open #sheet, body.detail-open #detail { transform: none; visibility: 
   }
 
   /* ── データ読み込み ───────────────────────── */
+  const tGroup = (t) => t.group || "main";
+  const groupsOf = () => (data && data.groups && data.groups.length) ? data.groups : [{ id: "main", name: "My News" }];
+  const gTopics = () => data.topics.filter(t => tGroup(t) === group);
+  const isNeta = () => group !== "main";  // ネタ帳(先取り・注目・保存・SNS)を出すグループ
+
   function loadState() {
-    topicIdx = new Map(data.topics.map((t, i) => [t.id, i]));
+    if (!groupsOf().some(g => g.id === group)) group = "main";
+    const gt = gTopics();
+    topicIdx = new Map(gt.map((t, i) => [t.id, i]));
+    data.topics.forEach((t) => { if (!topicIdx.has(t.id)) topicIdx.set(t.id, 0); });
     const sel = lsGet(LS_SEL);
     const ids = new Set(data.topics.map(t => t.id));
     const defaults = () => new Set(data.topics.filter(t => t.default).map(t => t.id));
     selected = Array.isArray(sel) ? new Set(sel.filter(id => ids.has(id))) : defaults();
-    if (selected.size === 0) selected = defaults();
+    // 新しく増えたテーマ(前回までに見ていないもの)は、初期選択どおりにオンにする
+    const known = lsGet(LS_KNOWN);
+    const knownSet = new Set(Array.isArray(known) ? known : data.topics.filter(t => tGroup(t) === "main").map(t => t.id));
+    data.topics.forEach(t => { if (!knownSet.has(t.id) && t.default) selected.add(t.id); });
+    lsSet(LS_KNOWN, data.topics.map(t => t.id));
+    if (Array.isArray(sel)) lsSet(LS_SEL, [...selected]);
+    if (!gt.some(t => selected.has(t.id))) gt.filter(t => t.default).forEach(t => selected.add(t.id));
+    if (filter !== "all" && !(filter in PSEUDO && isNeta()) && !gt.some(t => t.id === filter)) filter = "all";
+    const sv = lsGet(LS_SAVED);
+    saved = Array.isArray(sv) ? sv : [];
     const r = lsGet(LS_READ);
     read = new Set(Array.isArray(r) ? r.slice(-1500) : []);
   }
@@ -452,9 +500,84 @@ body.sheet-open #sheet, body.detail-open #detail { transform: none; visibility: 
   const topicName = (id) => (data.topics.find(t => t.id === id) || {}).name || "";
   const mainTopic = (a) => (filter !== "all" && a.topics.includes(filter)) ? filter : a.topics.find(id => selected.has(id));
 
+  const todayKey = () => dayKey(new Date());
   function visibleArticles() {
-    return data.articles.filter(a =>
-      a.topics.some(t => selected.has(t)) && (filter === "all" || a.topics.includes(filter)));
+    if (filter === "saved") return saved.slice().reverse();
+    if (filter === "sns") return [];
+    const gids = new Set(gTopics().filter(t => selected.has(t.id)).map(t => t.id));
+    const base = data.articles.filter(a => a.topics.some(t => gids.has(t)));
+    if (filter === "ahead") {
+      const today = todayKey();
+      return base.filter(a => a.event_date && (a.event_end || a.event_date) >= today)
+        .sort((x, y) => x.event_date.localeCompare(y.event_date) || (y.ai?.score || 0) - (x.ai?.score || 0));
+    }
+    if (filter === "hot") return base.filter(a => (a.ai?.score || 0) >= 4);
+    return base.filter(a => filter === "all" || a.topics.includes(filter));
+  }
+
+  /* ── 保存したネタ ───────────────────────── */
+  const isSaved = (a) => saved.some(s => s.link === a.link);
+  function toggleSave(a, btn) {
+    if (isSaved(a)) saved = saved.filter(s => s.link !== a.link);
+    else {
+      const keep = ["title", "link", "source", "published", "topics", "summary", "ai", "event_date", "event_end", "body_url"];
+      const o = {}; keep.forEach(k => { if (a[k] !== undefined) o[k] = a[k]; });
+      o.saved_at = new Date().toISOString();
+      saved.push(o);
+      if (saved.length > 300) saved = saved.slice(-300);
+    }
+    lsSet(LS_SAVED, saved);
+    if (btn) btn.setAttribute("aria-pressed", String(isSaved(a)));
+    if (filter === "saved") renderList();
+    else renderTabs();
+  }
+  function starBtn(a) {
+    const b = document.createElement("button"); b.type = "button"; b.className = "star";
+    b.setAttribute("aria-label", "ネタとして保存"); b.setAttribute("aria-pressed", String(isSaved(a)));
+    b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.9L12 16.9l-5.2 2.8 1-5.9-4.3-4.1 5.9-.8z"/></svg>';
+    b.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); toggleSave(a, b); });
+    return b;
+  }
+  const mdShort = (k) => `${parseInt(k.slice(5, 7), 10)}/${parseInt(k.slice(8, 10), 10)}`;
+  function eventLabel(a) {
+    if (!a.event_date) return null;
+    const today = todayKey();
+    const end = a.event_end || a.event_date;
+    const wd = (k) => weekday(new Date(k + "T12:00:00+09:00"), "short");
+    if (a.event_date <= today && end >= today) return { text: end === a.event_date ? "きょう" : `開催中〜${mdShort(end)}`, now: true };
+    if (end < today) return { text: `${mdShort(a.event_date)} 終了`, now: false };
+    let t = `${mdShort(a.event_date)}(${wd(a.event_date)})`;
+    if (end !== a.event_date) t += `〜${mdShort(end)}`;
+    return { text: t, now: false };
+  }
+  function renderGroups() {
+    const box = $("groups");
+    const gs = groupsOf();
+    box.hidden = gs.length < 2;
+    box.style.gridTemplateColumns = `repeat(${gs.length}, 1fr)`;
+    box.replaceChildren();
+    gs.forEach(g => {
+      const b = document.createElement("button"); b.textContent = g.name;
+      b.setAttribute("aria-pressed", String(g.id === group));
+      b.onclick = () => {
+        if (g.id === group) return;
+        group = g.id; filter = "all";
+        try { localStorage.setItem(LS_GROUP, group); } catch {}
+        loadState(); renderAll(); window.scrollTo(0, 0);
+      };
+      box.appendChild(b);
+    });
+  }
+  function renderSns() {
+    const list = $("list");
+    const p = document.createElement("p"); p.className = "sns-intro";
+    p.textContent = "X・Instagram・TikTok は自動で集められないため、よく使う検索をすぐ開けるようにしています。iPhone ではアプリが入っていればアプリで開きます。検索は topics.json の sns_searches で増やせます。";
+    const box = document.createElement("div"); box.className = "sns";
+    (data.sns || []).forEach(s => {
+      const a = document.createElement("a"); a.href = safeUrl(s.url); a.target = "_blank"; a.rel = "noopener noreferrer";
+      a.textContent = s.name; box.appendChild(a);
+    });
+    list.append(p, box);
   }
 
   /* ── 描画 ───────────────────────── */
@@ -471,7 +594,24 @@ body.sheet-open #sheet, body.detail-open #detail { transform: none; visibility: 
       box.appendChild(b);
     };
     mk("all", "すべて");
-    data.topics.filter(t => selected.has(t.id)).forEach(t => mk(t.id, t.name));
+    if (isNeta()) {
+      const today = todayKey();
+      const gids = new Set(gTopics().filter(t => selected.has(t.id)).map(t => t.id));
+      const base = data.articles.filter(a => a.topics.some(t => gids.has(t)));
+      const n = {
+        ahead: base.filter(a => a.event_date && (a.event_end || a.event_date) >= today).length,
+        hot: base.filter(a => (a.ai?.score || 0) >= 4).length,
+        saved: saved.length,
+      };
+      Object.entries(PSEUDO).forEach(([id, label]) => {
+        if (id === "hot" && !base.some(a => a.ai)) return;  // AI判定を使っていなければ出さない
+        if (id === "sns" && !(data.sns || []).length) return;
+        mk(id, label);
+        const b = box.lastChild; b.classList.add("pseudo"); paintAccent(b); b.querySelector(".dot")?.remove();
+        if (id in n) { const c = document.createElement("span"); c.className = "cnt"; c.textContent = n[id]; b.appendChild(c); }
+      });
+    }
+    gTopics().filter(t => selected.has(t.id)).forEach(t => mk(t.id, t.name));
   }
 
   function renderStatus(count) {
@@ -490,21 +630,30 @@ body.sheet-open #sheet, body.detail-open #detail { transform: none; visibility: 
     rowOf = new Map();
     view = visibleArticles();
     renderStatus(view.length);
+    if (filter === "sns") { renderSns(); return; }
     if (!view.length) {
       const d = document.createElement("div"); d.className = "notice";
-      const p = document.createElement("p"); p.textContent = "表示できる記事がありません。「テーマ」から表示するテーマを選んでください。";
+      const p = document.createElement("p");
+      p.textContent = filter === "saved" ? "保存したネタはまだありません。記事の ☆ を押すと、ここに残ります。"
+        : filter === "ahead" ? "これから先の日付が書かれた記事は、いまはありません。"
+        : filter === "hot" ? "ネタ度4以上の記事は、いまはありません。"
+        : "表示できる記事がありません。「テーマ」から表示するテーマを選んでください。";
       d.appendChild(p); list.appendChild(d); return;
     }
-    // 日付ごとにまとめる
+    // 日付ごとにまとめる(先取りは開催日ごと)
+    const today = todayKey();
     const groups = new Map();
     view.forEach((a, i) => {
-      const key = a.published ? dayKey(new Date(a.published)) : "none";
+      const key = filter === "ahead" ? (a.event_date < today ? "now" : a.event_date)
+        : a.published ? dayKey(new Date(a.published)) : "none";
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push(i);
     });
     for (const [key, idxs] of groups) {
       const sec = document.createElement("section"); sec.className = "day";
-      const h = document.createElement("h2"); h.textContent = key === "none" ? "日時不明" : dayLabel(key);
+      const h = document.createElement("h2");
+      h.textContent = key === "none" ? "日時不明" : key === "now" ? "開催中"
+        : filter === "ahead" ? (key === today ? "今日" : `${md(key)}(${weekday(new Date(key + "T12:00:00+09:00"), "short")})`) : dayLabel(key);
       sec.appendChild(h);
       for (const i of idxs) {
         const a = view[i];
@@ -514,19 +663,26 @@ body.sheet-open #sheet, body.detail-open #detail { transform: none; visibility: 
         const tag = mainTopic(a);
         paint(el, tag);
         const tm = document.createElement("time");
-        if (a.published) { tm.dateTime = a.published; tm.textContent = fmtTime.format(new Date(a.published)); }
+        if (filter === "ahead" && a.event_date) tm.textContent = mdShort(a.event_date < today ? today : a.event_date);
+        else if (filter === "saved" && a.published) tm.textContent = mdShort(dayKey(new Date(a.published)));
+        else if (a.published) { tm.dateTime = a.published; tm.textContent = fmtTime.format(new Date(a.published)); }
         else tm.textContent = "--:--";
         const rail = document.createElement("span"); rail.className = "rail";
         rail.appendChild(railNode(read.has(a.link)));
         const body = document.createElement("div"); body.className = "body";
         const hl = document.createElement("div"); hl.className = "hl"; hl.textContent = a.title;
         body.appendChild(hl);
-        if (a.summary) { const pv = document.createElement("div"); pv.className = "pv"; pv.textContent = a.summary; body.appendChild(pv); }
+        if (a.ai && a.ai.pitch) { const pt = document.createElement("div"); pt.className = "pitch"; pt.textContent = a.ai.pitch; body.appendChild(pt); }
+        else if (a.summary) { const pv = document.createElement("div"); pv.className = "pv"; pv.textContent = a.summary; body.appendChild(pv); }
         const meta = document.createElement("div"); meta.className = "meta";
+        const ev = eventLabel(a);
+        if (ev) { const s = document.createElement("span"); s.className = "ev" + (ev.now ? " now" : ""); s.textContent = "📅 " + ev.text; meta.appendChild(s); }
+        if (a.ai) { const s = document.createElement("span"); s.className = "score s" + a.ai.score; s.textContent = `ネタ度${a.ai.score}`; s.title = a.ai.genre || ""; meta.appendChild(s); }
         if (tag) { const s = document.createElement("span"); s.className = "pill"; s.textContent = topicName(tag); meta.appendChild(s); }
         if (a.source) { const s = document.createElement("span"); s.textContent = a.source; meta.appendChild(s); }
         const acts = document.createElement("span"); acts.className = "acts";
         if (read.has(a.link)) acts.appendChild(doneBadge());
+        if (isNeta()) acts.appendChild(starBtn(a));
         const go = document.createElement("button"); go.type = "button"; go.className = "go";
         go.setAttribute("aria-label", "元の記事を開く");
         go.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>元記事';
@@ -540,7 +696,7 @@ body.sheet-open #sheet, body.detail-open #detail { transform: none; visibility: 
         el.append(tm, rail, body);
         el.addEventListener("click", (e) => {
           if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return; // 新しいタブで開く操作はそのまま
-          if (tapMode === "open" && !a.body_url) { markRead(a); return; }  // そのまま元記事のリンクを開く
+          if (tapMode === "open" && !a.body_url && !(isNeta() && a.ai)) { markRead(a); return; }  // そのまま元記事のリンクを開く
           e.preventDefault();
           openDetail(i);
         });
@@ -556,7 +712,7 @@ body.sheet-open #sheet, body.detail-open #detail { transform: none; visibility: 
     data.articles.forEach(a => a.topics.forEach(t => counts[t] = (counts[t] || 0) + 1));
     const box = $("opts");
     box.replaceChildren();
-    data.topics.forEach(t => {
+    gTopics().forEach(t => {
       const lab = document.createElement("label"); lab.className = "opt";
       paint(lab, t.id);
       const dot = document.createElement("span"); dot.className = "dot";
@@ -567,7 +723,7 @@ body.sheet-open #sheet, body.detail-open #detail { transform: none; visibility: 
       cb.onchange = () => {
         cb.checked ? selected.add(t.id) : selected.delete(t.id);
         lsSet(LS_SEL, [...selected]);
-        if (filter !== "all" && !selected.has(filter)) filter = "all";
+        if (filter !== "all" && !(filter in PSEUDO) && !selected.has(filter)) filter = "all";
         renderTabs(); renderList();
       };
       lab.append(dot, name, n, cb);
@@ -575,7 +731,7 @@ body.sheet-open #sheet, body.detail-open #detail { transform: none; visibility: 
     });
   }
 
-  function renderAll() { renderMasthead(); renderTabs(); renderList(); renderOpts(); }
+  function renderAll() { renderMasthead(); renderGroups(); renderTabs(); renderList(); renderOpts(); }
 
   function showError() {
     const list = $("list");
@@ -751,6 +907,20 @@ body.sheet-open #sheet, body.detail-open #detail { transform: none; visibility: 
       readBody(a.body_url).then(t => {
         if (detailAt === at) renderBody(full, t);
       }).catch(() => { if (detailAt === at) full.textContent = "本文を読み込めませんでした。「元の記事を開く」でPDFを開いてください。"; });
+    }
+
+    if (a.ai || a.event_date) {
+      const ai = document.createElement("div"); ai.className = "d-ai";
+      const ev = eventLabel(a);
+      const parts = [];
+      if (ev) parts.push(["日程", ev.text]);
+      if (a.ai) {
+        parts.push(["ネタ度", `${a.ai.score} / 5` + (a.ai.genre ? `(${a.ai.genre})` : "")]);
+        if (a.ai.place) parts.push(["場所", a.ai.place]);
+        if (a.ai.pitch) parts.push(["切り口", a.ai.pitch]);
+      }
+      parts.forEach(([k, v]) => { const d = document.createElement("div"); const b = document.createElement("b"); b.textContent = k + " "; d.append(b, v); ai.appendChild(d); });
+      sum.insertBefore(ai, sum.firstChild);
     }
 
     const rel = $("d-rel");

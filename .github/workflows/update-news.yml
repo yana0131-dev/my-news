@@ -41,6 +41,7 @@ jobs:
       - name: Fetch news
         env:
           NEWS_PASSPHRASE: ${{ secrets.NEWS_PASSPHRASE }}   # 合言葉(GitHubのSecretsに登録)
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}     # 富山ネタ帳のネタ度判定(未登録なら判定なしで動く)
         run: python scripts/fetch_news.py site/news.json
 
       - uses: actions/configure-pages@v5
